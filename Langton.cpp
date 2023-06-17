@@ -33,12 +33,7 @@ vector <vector <bool> > matrix_clean(n, vector <bool> (n, false));
 
 
 // Arreglo para mantener el control de las hormigas que existen
-struct node{
-    int y;
-    list <int> x;
-};
-
-list <node> celdas_vivas;
+set <pair<int,int>> celdas_vivas;
 
 
 // Arreglo para almacenar las hormigas que se encuentren en la simulacion
@@ -312,6 +307,19 @@ void updateGraphics(){
     int cantidad_x = 1400 /sizeCelda_X;
     int cantidad_y = 700/sizeCelda_Y;
 
+    // Recorremos la estructura de datos en la que almacenamos las celdas vivas
+    for (auto i: celdas_vivas){
+        if (i.first - index_visual_x >= 0 && i.first - index_visual_x <= cantidad_x){
+            if (i.second - index_visual_y >= 0 && i.second - index_visual_y <= cantidad_y){
+                int x = i.first - index_visual_x;
+                int y = i.second - index_visual_y;
+
+                celda.setPosition(x * sizeCelda_X, y * sizeCelda_Y);
+                celda.setFillColor(sf::Color(255, 255, 255));
+                inner.draw(celda);
+            }
+        }
+    }
 
     // Ponemos todas las hormigas en el tablero
     // Si recorremos el arreglo temporal, tenemos que poner las etiquetas en cada celda
@@ -347,25 +355,6 @@ void updateGraphics(){
             celda.setPosition(x * sizeCelda_X, y * sizeCelda_Y);
             celda.setFillColor(sf::Color(color_hormigas[i.second.tipo][0], color_hormigas[i.second.tipo][1], color_hormigas[i.second.tipo][2]));
             inner.draw(celda);
-        }
-    }
-
-
-    // Recorremos la estructura de datos en la que almacenamos las celdas vivas
-    for (auto i: celdas_vivas){
-        if (i.y - index_visual_y >= 0 && i.y - index_visual_y <= cantidad_y){
-            i.y -= index_visual_y;
-            for (auto x : i.x){
-                // Como queremos darle la priodidad a mostrar las hormigas dentro de la simulacion realizamos la sigueinte condicional
-                if (hormigas.find({x, i.y+index_visual_y}) == hormigas.end() && hormigas_temporal.find({x, i.y + index_visual_y}) == hormigas_temporal.end()){
-                    if (x - index_visual_x >= 0 && x - index_visual_x <= cantidad_x){
-                        x -= index_visual_x;
-                        celda.setPosition(x * sizeCelda_X, i.y * sizeCelda_Y);
-                        celda.setFillColor(sf::Color(255, 255, 255));
-                        inner.draw(celda);
-                    }
-                }
-            }
         }
     }
 
@@ -418,8 +407,6 @@ pair <int,int> checkMovement(int direccion, int x, int y){
             if (bandera_nulo) x = n -1;;
     }
 
-    cout << "Coordinates checked : " << x << " - " << y << endl;
-
     if(hormigas.find({x, y}) == hormigas.end()) return {x,y};
     return {-1,-1};
 }
@@ -442,8 +429,6 @@ void nextState(){
         int x = i->first.first;
         int y = i->first.second;
 
-        cout << x << ", " << y << endl;
-        
         // En caso de que la hormiga cumpla con la condicion maxima de iteraciones, se quitara de la simulacion
         if (i->second.edad == 80) hormigas.erase(i);
         else {
@@ -467,34 +452,12 @@ void nextState(){
 
             if (matrix[y][x] == false){
                 matrix[y][x] = true;
-                bool bandera_agregado = false;
-
-                for (list<node>::iterator it = celdas_vivas.begin(); it != celdas_vivas.end(); it++){
-                    if (it -> y == y){
-                        it -> x.push_back(x);
-                        bandera_agregado = true;
-                        break;
-                    }
-                }
-
-                if (!bandera_agregado) celdas_vivas.push_back({y, {x}});
+                celdas_vivas.insert({x, y});
             }
 
             else {
                 matrix[y][x] = false;
-                /*
-                for (list<node>::iterator it = celdas_vivas.begin(); it != celdas_vivas.end(); it++){
-                    if (it -> y == y){
-                        for (list<int> :: iterator itr = it -> x.begin(); itr != it -> x.end(); itr++){
-                            if (*itr == x){
-                                it -> x.erase(itr);
-                                if (it->x.size() == 0) celdas_vivas.erase(it);
-                                break;
-                            }
-                        }
-                    }
-                }
-                */
+                celdas_vivas.erase({x, y});
             }
 
             pair <int,int> coordenadas = checkMovement(direccion, x , y);
@@ -633,12 +596,12 @@ void actionHandler(string action){
 
 int main() {
 
-    // y, x
+    // x, y
 
-    celdas_vivas.push_back({0, {3}});
-    celdas_vivas.push_back({0, {5}});
-    celdas_vivas.push_back({0, {7}});
-    celdas_vivas.push_back({0, {9}});
+    celdas_vivas.insert({3, 0});
+    celdas_vivas.insert({5, 0});
+    celdas_vivas.insert({7, 0});
+    celdas_vivas.insert({9, 0});
 
     index_zoom -= 3;
 
