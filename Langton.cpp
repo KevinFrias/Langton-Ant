@@ -27,9 +27,9 @@ map <int, tuple<int,int,int>> colors;
 
 // Matrices necesarias para los diferentes estados de la simulacion
 // Son enteros ya que guardaremos el tipo de hormiga en cada celda
-vector <vector <int> > matrix(n);
-vector <vector <int> > matrix_next(n);
-vector <vector <int> > matrix_clean(n);
+vector <vector <bool> > matrix(n, vector <bool> (n, false));
+vector <vector <bool> > matrix_next(n, vector <bool> (n, false));
+vector <vector <bool> > matrix_clean(n, vector <bool> (n, false));
 
 
 // Arreglo para mantener el control de las hormigas que existen
@@ -77,7 +77,6 @@ vector <int> zoom = {/*1, 2,*/ 4, 5, 7, 10, 14, 20, 25, 28, 35, 50, 70, 100, 140
 // Definimos banderas que nos ayudan a mantener el control de acciones especificas del programa
 bool bandera_automatico = false;
 bool bandera_nulo = true;
-bool bandera_etiquetas = false;
 
 // Definimos la fuente que vamos a ocupar dentro de la ventana
 sf::Font font;
@@ -292,12 +291,9 @@ void handlerArchivo (string action){
 }
 */
 
-
 // Donde van a estar las hormigas? -> map <pair<int,int> ant>
 
 // Como voy a pintar la simulacion? -> list <list> cells;
-
-// Como voy a saber el recorrido que hizo una hormiga? -> vector <set<pair<int,int> > > paths (4);
 
 
 void updateGraphics(){
@@ -376,6 +372,60 @@ void updateGraphics(){
     return ;
 }
 
+int getNewPosition(vector <int> direcciones){
+    // Creamos un generador de numeros aleatorios
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    set <int> direccion = {2,3};
+
+    // Seleccionamos un numero entre 1 y 2 para las posiciones disponibles
+    std::uniform_int_distribution<> dis(0, direcciones.size() - 1);
+
+    int randomIndex = dis(gen);
+
+    return direcciones[randomIndex];
+}
+
+pair <int,int> checkMovement(int direccion, int x, int y){
+    // Direccion 5:
+    // 1 -> arriba
+    // 2 -> derecha
+    // 3 -> abajo
+    // 4 -> izquierda
+
+    if (direccion == 1) {
+        if (y - 1 >= 0) y -= 1;
+        else 
+            if (bandera_nulo) y = n - 1;
+    }
+
+    else if (direccion == 2){
+        if (x + 1 < n) x += 1;
+        else
+            if (bandera_nulo) x = 0;;
+    }
+
+    else if (direccion == 3){
+        if (y + 1 < n) y += 1;
+        else
+            if (bandera_nulo) y = 0;;
+    }
+
+    else{
+        if (x - 1 >= 0) x -= 1;
+        else
+            if (bandera_nulo) x = n -1;;
+    }
+
+    cout << "Coordinates checked : " << x << " - " << y << endl;
+
+    if(hormigas.find({x, y}) == hormigas.end()) return {x,y};
+    return {-1,-1};
+}
+
+
+
 void nextState(){
     // Como unicamente tengo que tomar en cuenta las hormigas que estan vivas o que existen
     // entonces estaria mejor que unicamente ocupe el arreglo de donde se encutran las hormigas, no?
@@ -384,6 +434,102 @@ void nextState(){
     // 1 -> Trabajadoras
     // 2 -> Reproductoras
     // 3 -> Soldado
+
+    // Que tengo que recorrer? Tengo que checar el arreglo de las hormigas
+    map<pair<int,int>, Ant>:: iterator i = hormigas.begin();
+
+    for (; i != hormigas.end(); i++){
+        int x = i->first.first;
+        int y = i->first.second;
+
+        cout << x << ", " << y << endl;
+        
+        // En caso de que la hormiga cumpla con la condicion maxima de iteraciones, se quitara de la simulacion
+        if (i->second.edad == 80) hormigas.erase(i);
+        else {
+            // Como determino que el giro es valido?
+            // Crea una chequeo rapido en donde giras y mueves, si existe una hormiga ahi
+            // Dispara :
+            // Random para alguna de las otras posiciones
+            // Si esta ocupada -> No hagas nada
+            // En caso contario -> Muevete a esa celda
+
+            int direccion = i->second.direccion;
+
+            if (matrix[y][x]){
+                direccion = (direccion + 1) % 5;
+                direccion += (direccion == 0 ? 1 : 0);
+            }
+            else{
+                direccion -= 1;
+                direccion = (direccion == 0 ? 4 : direccion); 
+            }
+
+            if (matrix[y][x] == false){
+                matrix[y][x] = true;
+                bool bandera_agregado = false;
+
+                for (list<node>::iterator it = celdas_vivas.begin(); it != celdas_vivas.end(); it++){
+                    if (it -> y == y){
+                        it -> x.push_back(x);
+                        bandera_agregado = true;
+                        break;
+                    }
+                }
+
+                if (!bandera_agregado) celdas_vivas.push_back({y, {x}});
+            }
+
+            else {
+                matrix[y][x] = false;
+                /*
+                for (list<node>::iterator it = celdas_vivas.begin(); it != celdas_vivas.end(); it++){
+                    if (it -> y == y){
+                        for (list<int> :: iterator itr = it -> x.begin(); itr != it -> x.end(); itr++){
+                            if (*itr == x){
+                                it -> x.erase(itr);
+                                if (it->x.size() == 0) celdas_vivas.erase(it);
+                                break;
+                            }
+                        }
+                    }
+                }
+                */
+            }
+
+            pair <int,int> coordenadas = checkMovement(direccion, x , y);
+
+            if (coordenadas.first != -1){
+                auto actual = hormigas[{x, y}];
+                actual.direccion = direccion;
+                hormigas.erase(hormigas.find({x,y}));
+
+                hormigas[{coordenadas.first, coordenadas.second}] = actual;
+            }
+
+            else {
+                // Ponemos dentro del arreglo de las nuevas direcciones la nuevas direcciones
+                // para poder seleccionarla de manera aleatoria, exluyo la direccion de la que vengo
+                // y la que no fue posible en un inicio
+                vector <int> direcciones = {direccion + 1, direccion + 2};
+
+                // Seleccionamos la nueva direccion
+                int nueva_direaccion = getNewPosition({2, 3});
+                // Checamos si esa nueva posicion es valida
+                coordenadas = checkMovement(nueva_direaccion, x , y);
+
+                // En caso de que sea posible agregamos esa nueva posicion
+                if (coordenadas.first != -1){
+                    auto actual = hormigas[{x, y}];
+                    actual.direccion = nueva_direaccion;
+                    hormigas.erase(hormigas.find({x,y}));
+                    hormigas[{coordenadas.first, coordenadas.second}] = actual;
+                }
+            }
+
+        }
+    }
+
 }
 
 void boardHandler(int x, int y){
@@ -431,11 +577,7 @@ void boardHandler(int x, int y){
 
 }
 
-
-
 void actionHandler(string action){
-
-
 
     if (action == "Evolucion Automatica" || action == "Siguiente Evolucion") {
         // En caso de que sea seleccionada la evolución automática, cambiamos la bandera referente
@@ -450,6 +592,8 @@ void actionHandler(string action){
 
         for (auto i : hormigas_temporal) hormigas[i.first] = i.second;
         hormigas_temporal.clear();
+
+        nextState();
     }
 
     // Detenemos la evolución automatica si es el caso
@@ -503,13 +647,14 @@ int main() {
     color_hormigas[2] = {175,238,238};
     color_hormigas[3] = {221,160,221};
 
+/*
     Ant actual;
     actual.edad = 0;
     actual.direccion = 1;
-    actual.tipo = 1;
+    actual.tipo = 0;
 
     hormigas[{0,0}] = actual;
-
+*/
 
     // Creamos la ventana principal en la cual tendra todos los botones y la ventana del juego
     sf::RenderWindow outerWindow(sf::VideoMode(1650, 880), "Langton's Ant");
@@ -571,13 +716,7 @@ int main() {
         createRectangle(200, 50, 400, 810, "Iteracion : " + to_string(total_iteraciones), 20, 5, 13),
         createRectangle(200, 50, 650, 810, "Celdas vivas : " + to_string(total_celdas_vivas), 18, 5, 13)
     };
-
     
-    
-    // updateGraphics();
-
-
-
 
     // Bucle que ocupamos para la pantalla mientras ésta esté presente
     while (outerWindow.isOpen()) {
@@ -622,9 +761,6 @@ int main() {
                     int y = (((int)mousePosF.y - 90) / zoom[index_zoom]) + index_visual_y;
 
                     boardHandler(x, y);
-
-                    // Dentro de las coordenadas de x,y debo de ver la interaccion de esa celda con poner una hormiga o hacer algo
-
                 }
             }
         
