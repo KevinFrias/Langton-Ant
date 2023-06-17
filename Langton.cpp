@@ -412,6 +412,13 @@ pair <int,int> checkMovement(int direccion, int x, int y){
 }
 
 
+bool checkFront(int direccion, int x, int y, bool nacimiento){
+    int tipo = hormigas[{x, y}].tipo;
+
+
+
+}
+
 
 void nextState(){
     // Como unicamente tengo que tomar en cuenta las hormigas que estan vivas o que existen
@@ -425,6 +432,8 @@ void nextState(){
     // Que tengo que recorrer? Tengo que checar el arreglo de las hormigas
     map<pair<int,int>, Ant>:: iterator i = hormigas.begin();
 
+    map <pair<int,int>, Ant> nacimiento;
+
     for (; i != hormigas.end(); i++){
         int x = i->first.first;
         int y = i->first.second;
@@ -432,14 +441,73 @@ void nextState(){
         // En caso de que la hormiga cumpla con la condicion maxima de iteraciones, se quitara de la simulacion
         if (i->second.edad == 80) hormigas.erase(i);
         else {
-            // Como determino que el giro es valido?
-            // Crea una chequeo rapido en donde giras y mueves, si existe una hormiga ahi
-            // Dispara :
-            // Random para alguna de las otras posiciones
-            // Si esta ocupada -> No hagas nada
-            // En caso contario -> Muevete a esa celda
+            i->second.edad += 1;
+            
+            // En caso de que la hormiga que estamos checando sea reproductora, comprobamos si es que se cumple
+            // la regla de nacimiento
+            if (i->second.tipo == 2){
+                if (i->second.direccion == 1){
+                    int arriba = i->first.second;
+                    if (arriba - 1 >= 0) arriba -= 1;
+                    else if (bandera_nulo) arriba = n -1;
+
+                    if (hormigas.find({x, arriba}) != hormigas.end())
+                        if (hormigas[{x, arriba}].tipo == 0 && hormigas[{x, arriba}].direccion == 3){
+                            nacimiento[{x, y}] = i->second;
+                            nacimiento[{x, y}].edad = 0;
+                            nacimiento[{x, y}].tipo = 3;
+                        }
+                }
+
+                else if (i->second.direccion == 2){
+                    int derecha = i->first.first;
+                    if (derecha + 1 < n) derecha += 1;
+                    else if (bandera_nulo) derecha = 0;
+
+                    if (hormigas.find({x, derecha}) != hormigas.end())
+                        if (hormigas[{x, derecha}].tipo == 0 && hormigas[{x, derecha}].direccion == 4){
+                            nacimiento[{x, y}] = i->second;
+                            nacimiento[{x, y}].edad = 0;
+                            nacimiento[{x, y}].tipo = 3;
+                        }
+                }
+
+                else if (i->second.direccion == 3){
+                    int abajo = i->first.second;
+                    if (abajo + 1 < n) abajo += 1;
+                    else if (bandera_nulo) abajo = 0;
+
+                    if (hormigas.find({x, abajo}) != hormigas.end())
+                        if (hormigas[{x, abajo}].tipo == 0 && hormigas[{x, abajo}].direccion == 1){
+                            nacimiento[{x, y}] = i->second;
+                            nacimiento[{x, y}].edad = 0;
+                            nacimiento[{x, y}].tipo = 3;
+                        }
+                }
+
+                else if (i->second.direccion == 4){
+                    int izquierda = i->first.first;
+                    if (izquierda - 1 >= 0) izquierda -= 1;
+                    else if (bandera_nulo) izquierda = n - 1;
+
+                    if (hormigas.find({x, izquierda}) != hormigas.end())
+                        if (hormigas[{x, izquierda}].tipo == 0 && hormigas[{x, izquierda}].direccion == 2){
+                            nacimiento[{x, y}] = i->second;
+                            nacimiento[{x, y}].edad = 0;
+                            nacimiento[{x, y}].tipo = 3;
+                        }
+                }
+            }
+
+            if (i->second.tipo == 0){
+
+
+            }
+
 
             int direccion = i->second.direccion;
+
+            // Checamos la condicion y comprobar si es que alguna nueva hormiga nace
 
             if (matrix[y][x]){
                 direccion = (direccion + 1) % 5;
@@ -454,7 +522,6 @@ void nextState(){
                 matrix[y][x] = true;
                 celdas_vivas.insert({x, y});
             }
-
             else {
                 matrix[y][x] = false;
                 celdas_vivas.erase({x, y});
@@ -493,6 +560,11 @@ void nextState(){
         }
     }
 
+    // Agregamos todas las hormigas que salieron de la condicion de nacimiento
+    for (auto i : nacimiento)
+        hormigas[{i.first.first, i.first.second}] = i.second;
+
+    return;
 }
 
 void boardHandler(int x, int y){
