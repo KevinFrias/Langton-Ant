@@ -2,9 +2,7 @@
 #include <SFML/System.hpp>
 #include <SFML/Window.hpp>
 #include <bits/stdc++.h>
-#include <gtk/gtk.h>
-#include <semaphore>
-#include <chrono>
+// #include <gtk/gtk.h>
 #define PB push_back
 using namespace std;
 
@@ -13,27 +11,54 @@ int n = 1400;
 int n_archivo = 0;
 int sizeCelda_X, sizeCelda_Y;
 
-// Matrices necesarias para los diferentes estados del juego
-vector < vector <bool>> matrix(n, vector(n, false));
-vector < vector <bool>> matrix_clean(n, vector(n, false));
-vector < vector <bool>> matrix_next_gen(n, vector(n, false));
+// Declaracion de la estructura de la hormiga que se ocupara dentro del programa
+struct Ant {
+    int edad;
+    int direccion;
+    int tipo;
+};
+
+// La densidad de hormigas la guardaremos dentro de un arreglo para tener un control general de este
+
+// Hashmap para el control del color de las hormigas dependiendo de su tipo en caso de 
+// que se quieran mostrar las etiquetas
+map <int, tuple<int,int,int>> colors;
+
+
+// Matrices necesarias para los diferentes estados de la simulacion
+// Son enteros ya que guardaremos el tipo de hormiga en cada celda
+vector <vector <int> > matrix(n);
+vector <vector <int> > matrix_next(n);
+vector <vector <int> > matrix_clean(n);
+
+
+// Arreglo para mantener el control de las hormigas que existen
+struct node{
+    int y;
+    list <int> x;
+};
+
+list <node> celdas_vivas;
+
+
+// Arreglo para almacenar las hormigas que se encuentren en la simulacion
+// Almacenamos las coordenadas de la hormiga y la informacion relevante a esa hormiga
+map < pair<int,int>, Ant> hormigas;
+
+// El arreglo temporal unicamente lo utilizaremos para mostrar los cambios que se hayan hecho 
+// a las hormigas en un instante de tiempo
+map < pair<int,int>, Ant> hormigas_temporal;
+
 
 // Arreglos para manetener un control de todos los valores que se usan en las graficas
 vector <int> valores_grafica_normal;
 vector <int> valores_grafica_entriopia;
 unordered_map <int,int> entropy;
 
-// Arreglos para las celdas que se encuentran vivas
-vector <list <int>> live_cells(n);
-vector <list <int>> live_cells_clean(n);
+// Definimos los valores RGB del fondo de la pantalla de la simulacion
+int color_fondo[] = {0,0,0};
 
-// Conjunto para tener control de las reglas del juego
-set <int> regla_nacimineto;
-set <int> regla_sobrevivir;
-
-// Definimos RGB de los diferentes colores que se ocupan dentro del programa
-int color_muerto[] = {0,0,0};
-int color_vivo[] = {255,255,255};
+vector <vector <int> > color_hormigas(4, vector <int> (3));
 
 // Declaracion de variables para tener un control del scroll que se aplica
 int index_visual_x = 0;
@@ -45,22 +70,18 @@ int total_iteraciones = 0;
 int total_celdas_vivas = 0;
 int total_celdas_vivas_entriopia = 0;
 
-
 // varibles necesarias para el control del zoom
-int index_zoom = 13;
+int index_zoom = 15;
 vector <int> zoom = {/*1, 2,*/ 4, 5, 7, 10, 14, 20, 25, 28, 35, 50, 70, 100, 140, 175, 350, 700};
-
 
 // Definimos banderas que nos ayudan a mantener el control de acciones especificas del programa
 bool bandera_automatico = false;
 bool bandera_nulo = true;
+bool bandera_etiquetas = false;
 
 // Definimos la fuente que vamos a ocupar dentro de la ventana
 sf::Font font;
 sf::RenderTexture inner;
-
-// Declaramos un mutex para bloquear el acceso de los diferentes hilos a la matrix
-mutex mtx;
 
 // Size del margen en pixeles
 const float margin = 10.f;
@@ -69,7 +90,7 @@ const float margin = 10.f;
 string valores_archivo;
 
 
-pair<sf::RectangleShape, sf::Text> createButton(int szBtnX, int szBtny, int posX, int posY, string texto, int szTexto, int posTX, int posTY){
+pair<sf::RectangleShape, sf::Text> createRectangle(int szBtnX, int szBtny, int posX, int posY, string texto, int szTexto, int posTX, int posTY){
     // Creamos la figura base dell boton, junto con el color y posicion
     sf::RectangleShape button(sf::Vector2f(szBtnX, szBtny));
     button.setFillColor(sf::Color(200, 200, 200));
@@ -84,301 +105,12 @@ pair<sf::RectangleShape, sf::Text> createButton(int szBtnX, int szBtny, int posX
     return std::make_pair(button, text);
 }
 
-void handleNextStep(int x1, int x2, int y1, int y2, int iteracion){
-    // Reiniciamos la cantidad total de celdas
-    total_celdas_vivas = 0;
-
-    // Hacemos un recorrido por toda la matriz definida
-    for (int i = x1; i <= x2; i++){
-        for (int j = y1; j <= y2; j++) {
-            // Declaramos las variables necesarias para el conteo total de la poblacion para 
-            // aplicar las reglas necesarias y los valores necesarios para la entropia
-            int poblacion = 0;
-            int poblacion2 = 0;
-            int temp = 0;
-
-            // Checamos si es que se aplica condición de frontera y hacemos los calculos necesarios
-            if (bandera_nulo){
-                // Lado izquierdo
-                if (i - 1 >= 0){
-                    if (j - 1 >= 0) {
-                        temp = (int)(matrix[j - 1][i - 1]);
-                        poblacion += temp;
-                        poblacion2 |= (temp << 8);
-                    }
-                    
-                    temp = (int)(matrix[j][i - 1]);
-                    poblacion += temp;
-                    poblacion2 |= (temp << 7);
-
-                    if (j + 1 < n){ 
-                        temp = (int)matrix[j + 1][i - 1];
-                        poblacion += temp;
-                        poblacion2 |= (temp << 6);
-                    }
-                }
-
-                // Lado central
-                if (j - 1 >= 0){
-                    temp = (int)matrix[j-1][i];
-                    poblacion += temp;
-                    poblacion2 |= (temp << 5);
-                }
-
-                poblacion2 |= ((int)matrix[j][i] << 4);
-
-                if (j + 1 < n){
-                    temp = (int)matrix[j+1][i];
-                    poblacion += temp;
-                    poblacion2 |= (temp << 3);
-                }
-
-                // Lado Derecho
-                if (i + 1 < n){
-                    if (j - 1 >= 0){
-                        temp = matrix[j - 1][i+1];
-                        poblacion += temp;
-                        poblacion2 |= (temp << 2);
-                    }
-
-                    temp = matrix[j][i+1];
-                    poblacion += temp;
-                    poblacion2 |= (temp << 1);
-
-                    if (j + 1 < n) {
-                        temp = matrix[j+1][i+1];
-                        poblacion += temp;
-						poblacion2 |= (temp << 0);
-                    }
-                }
-
-
-            }
-            else{
-                int indexIzquierda = (i - 1 < 0 ? n - 1 : i - 1);
-                int indexDerecha = (i + 1 >= n ? 0 : i + 1);
-                
-                int indexArriba = (j - 1 < 0 ? n - 1 : j - 1);
-                int indexAbajo = (j + 1 >= n ? 0 : j + 1);
-
-                // Lado inzquierdo
-                poblacion += matrix[indexArriba][indexIzquierda];
-                poblacion += matrix[j][indexIzquierda];
-                poblacion += matrix[indexAbajo][indexIzquierda];
-                poblacion2 |= (matrix[indexArriba][indexIzquierda] << 8);
-                poblacion2 |= (matrix[j][indexIzquierda] << 7);
-                poblacion2 |= (matrix[indexAbajo][indexIzquierda] << 6);
-
-                // Lado central
-                poblacion += matrix[indexArriba][i];
-                poblacion += matrix[indexAbajo][i];
-                poblacion2 |= (matrix[indexArriba][i] << 5);
-                poblacion2 |= (matrix[j][i] << 4);
-                poblacion2 |= (matrix[indexAbajo][i] << 3);
-
-                // Lado Derechp=o
-                poblacion += matrix[indexArriba][indexDerecha];
-                poblacion += matrix[j][indexDerecha];
-                poblacion += matrix[indexAbajo][indexDerecha];
-                poblacion2 |= (matrix[indexArriba][indexDerecha] << 2);
-                poblacion2 |= (matrix[j][indexDerecha] << 1);
-                poblacion2 |= (matrix[indexAbajo][indexDerecha] << 0);
-
-            }
-
-            // Sobrevivir
-            if (matrix[j][i]){
-                // Hacemos un simple chequeo de que la cantidad de celdas de esa region sea parte de 
-                // la regla para sobrevivir
-                if (regla_sobrevivir.count(poblacion)){
-                    // Agregamos la celda actual a la estructura encargada de dibujar las celdas vivas
-                    live_cells[j].PB(i);
-                    matrix_next_gen[j][i] = true;
-                    total_celdas_vivas++;
-                }
-                else matrix_next_gen[j][i] = false;
-            }   
-            else { // Nacimineto
-                // Al ser nacimiento checamos si es que la cantidad de vecinos es suficiente para que una célula nazca
-                if (regla_nacimineto.count(poblacion)){
-                    // Agregamos la celda actual a la estructura encargada de dibujar las celdas vivas
-                    live_cells[j].PB(i);
-                    // Aumentamos la cantidad de celdas vivas
-                    total_celdas_vivas++;
-                    matrix_next_gen[j][i] = true;
-                }
-            }
-            // Agregamos la densidad poblacional a la estructura correspondiente
-            entropy[poblacion2]++;
-        }
-    }
-
-    // Agregamos la densidad poblacional a la estructura correspondiente
-    valores_grafica_normal.PB(total_celdas_vivas);
-
-    return;
-}
-
-void updateGameVisual(){
-    // Limpiamos el tablero de juego con el color correspondiente
-    inner.clear(sf::Color(color_muerto[0], color_muerto[1], color_muerto[2]));
-    
-    // Asignamos el tamaño correspondiente a cada celda dependiendo el zoom actual
-    sizeCelda_X = zoom[index_zoom];
-    sizeCelda_Y = zoom[index_zoom];
-
-    // Hacemos los calculos necesarios para saber cuantas celdas son visibles con la cantidad de zoom actual
-    int cantidad_x = 1400/sizeCelda_X;
-    int cantidad_y = 700/sizeCelda_Y;
-
-    // Creamos la figura base de cada celda viva
-    sf :: RectangleShape celda(sf::Vector2f(sizeCelda_X, sizeCelda_Y));
-    int index = index_visual_x;
-
-    while(cantidad_x--){
-        if (live_cells[index].size()) {
-            // Si la celda está dentro de la cantidad visible, la dibujamos
-            for (list<int>:: iterator it = live_cells[index].begin(); it != live_cells[index].end(); it++){
-                celda.setPosition((index-index_visual_x)*sizeCelda_X, (*(it) - index_visual_y)*sizeCelda_Y);
-                celda.setFillColor(sf::Color(color_vivo[0], color_vivo[1], color_vivo[2]));
-                inner.draw(celda);
-            }
-        } 
-
-        index++;
-    }
-
-    return;
-}
-
-void selectColor(int opcion){
-
-    // Creamos la venta
-    string titutlo = "";
-
-    if (opcion == 1) titutlo = "vivas ";
-    else titutlo = "muertas ";
-
-    sf::RenderWindow windowSelectColor(sf::VideoMode(755, 400), "Selecciona un color para las celdas " + titutlo);
-    sf::Color selectedColor = sf::Color::White;
-    
-    // Creamos la dimension que va a tener cada color muestra
-    const int tileSize = 40;
-
-    // Creamos toda la paleta de colores
-    vector<sf::RectangleShape> palette;
-    vector<sf::RectangleShape> palette_clean;
-    sf::RectangleShape tile(sf::Vector2f(tileSize, tileSize));
-
-    // Creamos las variables para cada color de la paleta
-    int r, g, b, y = 20;
-
-    for(int i = 0; i < 4; i++) {
-        int x = 20;
-        for(int j = 0; j < 4; j++) {
-            for(int k = 0; k < 4; k++) {
-                tile.setPosition(x, y);
-
-                // Ocupamos un bitset para la creación de los diferentes colores
-                bitset<8> binary_num;
-                
-                binary_num = (i << 6 | j << 4 | k << 2);
-                r = binary_num.to_ulong();
-
-                binary_num = (i << 4 | j << 2 | k << 6);
-                g = binary_num.to_ulong();
-
-
-                binary_num = (i << 2 | j << 6 | k << 4);
-                b = binary_num.to_ulong();
-
-                x += 45;
-
-                sf::Color color(r, g, b);
-
-                tile.setFillColor(color);
-                palette.push_back(tile);
-
-            }
-
-        }
-        y += 45;
-    } 
-
-    palette_clean = palette;
-
-    // Cremoas el color para confirmar la selección
-    auto buttonOk = createButton(100, 50, 327, 300, "OK", 24, 32, 10);
-
-    int pressed = -1;
-
-    while (windowSelectColor.isOpen()) {
-        sf::Event event;
-        while (windowSelectColor.pollEvent(event)) {
-            if (event.type == sf::Event::Closed) windowSelectColor.close();
-
-            if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left) {
-                
-                // Get the mouse position relative to the window
-                sf::Vector2i mousePosition = sf::Mouse::getPosition(windowSelectColor);
-
-                // Hacemos un recorrido por todos los colores disponibles y checamos si alguno de ellos fue presionado
-                for (int i = 0; i < palette.size(); ++i){
-                    if (palette[i].getGlobalBounds().contains(mousePosition.x, mousePosition.y)){
-                        // En caso de que algun color sea presioado, ocupamos la pelata de colores sin ningun cambio y la asignamos a la que
-                        // vamos a mostrar
-                        palette = palette_clean;
-
-                        // Asignamos el color que se selecciono en una variable
-                        selectedColor = palette[i].getFillColor();
-
-                        // Del color seleccionado le agregamos una ayuda visual para mostrar en que posicion se encuentra
-                        palette[i].setSize(palette[i].getSize() - sf::Vector2f(margin * 2.f, margin * 2.f));
-                        palette[i].setPosition(palette[i].getPosition() + sf::Vector2f(margin, margin));
-                    }
-                }
-
-
-                // Una vez presionado el boton de OK, asignamos el color a la celda
-                if (buttonOk.first.getGlobalBounds().contains(mousePosition.x, mousePosition.y)){
-                    r = (int)selectedColor.r;
-                    g = (int)selectedColor.g;
-                    b = (int)selectedColor.b;
-
-                    // Unicamente checamos si tenemos que asignar el color a la celda viva o muerta
-                    if (opcion == 1){ 
-                        color_vivo[0] = r;
-                        color_vivo[1] = g;
-                        color_vivo[2] = b;
-                    }
-                    else {
-                        color_muerto[0] = r;
-                        color_muerto[1] = g;
-                        color_muerto[2] = b;
-                    }
-                    windowSelectColor.close();
-                }
-            }
-        }
-
-        // Colocamos todos los elementos de la pantalla y los mostramos
-
-        windowSelectColor.clear(sf::Color::White);
-        windowSelectColor.draw(buttonOk.first);
-        windowSelectColor.draw(buttonOk.second);
-
-
-        for (int i = 0; i < palette.size(); ++i) windowSelectColor.draw(palette[i]);
-
-        windowSelectColor.display();
-    }
-}
-
 void updateColors(){
+    /*
     // Creamos la ventana donde manejaremos el cambio de color de las celdas
     sf::RenderWindow windowColor(sf::VideoMode(660, 250), "Cambio de color");
 
-    auto buttonOk = createButton(100, 50, 280, 170, "OK", 24, 32, 10);
+    auto buttonOk = createRectangle(100, 50, 280, 170, "OK", 24, 32, 10);
 
     sf::RectangleShape alive(sf::Vector2f(200, 80));
     sf::RectangleShape death(sf::Vector2f(200, 80));
@@ -445,228 +177,11 @@ void updateColors(){
 
         windowColor.display();
     }
-
+*/
    return;
 }
 
-void nueva_regla(){
-    sf::RenderWindow windowRegla(sf::VideoMode(500, 300), "Nueva regla");
-
-    // Limpiamos la pantalla principal y le colocamos un color de fondo
-    windowRegla.clear(sf::Color(92,117,140));
-
-    // Creamos los botones para confirmar o cancelar la seleccion de una nueva regla
-    auto botonOK = createButton(100, 60, 120, 200, "OK", 20, 30, 16);
-    auto botonCancelar = createButton(100, 60, 280, 200, "Cancelar", 20, 8, 16);
-
-    // Creamos el cuadrante para poder ingresar la regla
-    sf::RectangleShape inputBox(sf::Vector2f(300, 50));
-    inputBox.setFillColor(sf::Color::White);
-    inputBox.setPosition(100, 100);
-
-    sf::Text text("|", font, 24);
-    text.setFillColor(sf::Color::Black);
-    text.setPosition(104, 108);
-
-    // Declaración de las variables para mostrar la entrada del usuario y la que mostramos
-    // ocupando SlidingWindow
-    string input;
-    string mostrar;
-    int index = 0;
-    bool banderaOk = false;
-
-    while (windowRegla.isOpen()){
-        sf::Event event;
-        windowRegla.clear(sf::Color(92,117,140));
-
-        while (windowRegla.pollEvent(event)){
-            if (event.type == sf::Event::Closed) windowRegla.close();
-
-            else if (event.type == sf::Event::TextEntered) {
-                if (event.text.unicode == '\b'){
-                    // Hacemos el manejo de borrar el ultimo caracter
-                    if (!input.empty()){
-                        input.pop_back();
-                        index = max(0, index - 1);;
-                    }
-                }
-                // Si alguna tecla del alfabeto fue presionada
-                else if (event.text.unicode < 128) {
-                    // La agregamos a la cadena que vamos a mostrar
-                    input += static_cast<char>(event.text.unicode);
-                }
-
-                // Se ocupa 21, ya que es la cantidad máxima de valores que se muestra en el input
-                if (input.size() > 21){
-                    int temp = input.size();
-                    mostrar = input.substr(index, min(21, temp));
-                }
-                else mostrar = input;
-
-                text.setString(mostrar);
-            }
-
-            else if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left) {
-                // Get the mouse position relative to the window
-                sf::Vector2i mousePosition = sf::Mouse::getPosition(windowRegla);
-
-                // Una vez presionado el boton de OK, asignamos el color a la celda
-                if (botonOK.first.getGlobalBounds().contains(mousePosition.x, mousePosition.y)){
-                    banderaOk = true;
-                    windowRegla.close();
-                }
-                if (botonCancelar.first.getGlobalBounds().contains(mousePosition.x, mousePosition.y)){
-                    windowRegla.close();
-                }
-            }
-        }
-
-            windowRegla.draw(inputBox);
-            windowRegla.draw(text);
-            windowRegla.draw(botonOK.first);
-            windowRegla.draw(botonOK.second);
-
-            windowRegla.draw(botonCancelar.first);
-            windowRegla.draw(botonCancelar.second);
-
-            windowRegla.display();
-    }
-
-
-    if (input.size() > 3 && banderaOk){
-        // Limpiamos los conjuntos para poder agregar los valores de la nueva regla
-        regla_nacimineto.clear();
-        regla_sobrevivir.clear();
-        
-        string survivial = "";
-        string birth = "";
-        bool bandera = false;
-
-        // Dividimos la entrada para tener un control más fácil
-        for (int i = 0; i < input.size(); i++){
-            if (input[i] == '/') bandera = true;
-
-            if (bandera) survivial += input[i];
-            else birth += input[i];
-        }
-
-        // Agregamos en la regla de nacimiento en caso de que sea un numero
-        for (int i = 0; i < birth.size(); i++)
-            if (birth[i] >= '0' && birth[i] <= '9') regla_nacimineto.insert(birth[i]-'0');
-        
-        // Agregamos en la regla de sobrevivencia en caso de que sea un numero
-        for (int i = 0; i < survivial.size(); i++)
-            if (survivial[i] >= '0' && survivial[i] <= '9') regla_sobrevivir.insert(survivial[i]-'0');
-    }
-
-    return;
-}
-
-void updateValores(){
-    // Reiniciamos todos los valores 
-    index_visual_x = 0;
-    index_visual_y = 0;
-    valor_scroll = 1;
-    total_celdas_vivas = 0;
-    total_iteraciones = 0;
-
-    // Limpiamos las estructuras donde se encuentra el juego y las celdas vivas
-    matrix.assign(matrix_clean.begin(), matrix_clean.end());
-    live_cells.assign(live_cells_clean.begin(), live_cells_clean.end());
-
-    // Reiniciamos los valores que se ocupan al momento de visualizar las gráficas
-    valores_grafica_entriopia.clear();
-    valores_grafica_normal.clear();
-    entropy.clear();
-
-    // En cada archivo se guarda el tamaño del tablero de juego en caso de que se hayan
-    //configurado de manera diferente
-    int size_archivo = valores_archivo.size();
-    int index = 0;
-
-    string numero = "";
-
-    while(index < size_archivo && valores_archivo[index] != '\n'){
-        numero += valores_archivo[index];
-        index++;
-    }
-
-    // Obtenemos el tamaño del tablero de juego
-    n_archivo = stoi(numero);
-
-    // Recorremos todo el tablero de juego del archivo para crear el nuevo
-    for (int i = 0; i < min(n_archivo, n); i++){
-        for (int j = 0; j < min(n, n_archivo); j++){
-            if (valores_archivo[index++] == '1'){
-                matrix[i][j] = true;
-                live_cells[i].PB(j);
-            }
-        }
-    }
-
-
-    // Calculamos la entropía del nuevo tablero de juego
-    for (int j = 0; j < n ; j++){
-            for (int i = 0; i < n; i++){
-                int poblacion = 0;
-                if (bandera_nulo){
-					// Lado izquierdo
-					if (i - 1 >= 0){
-						if (j - 1 >= 0) poblacion |= ((int)matrix[j-1][i-1] << 8);
-                        poblacion |= ((int)matrix[j][i-1] << 7);
-						if (j + 1 < n) poblacion |= ((int)matrix[j+1][i-1] << 6);
-					}
-					// Lado central
-					if (j - 1 >= 0) poblacion |= ((int)matrix[j-1][i] << 5);
-                    poblacion |= ((int)matrix[j][i] << 4);
-					if (j + 1 < n) poblacion |= ((int)matrix[j+1][i] << 3);
-
-					// Lado Derecho
-					if (i + 1 < n){
-						if (j - 1 >= 0) poblacion |= ((int)matrix[j-1][i+1] << 2);
-                        poblacion |= ((int)matrix[j][i+1] << 1);
-						if (j + 1 < n) poblacion |= ((int)matrix[j+1][i+1] << 0);
-					}
-                }
-				else{
-                    int indexIzquierda = (i - 1 < 0 ? n - 1 : i - 1);
-                    int indexDerecha = (i + 1 >= n ? 0 : i + 1);
-                    
-					int indexArriba = (j - 1 < 0 ? n - 1 : j - 1);
-                    int indexAbajo = (j + 1 >= n ? 0 : j + 1);
-
-					// Lado inzquierdo
-					poblacion |= (matrix[indexArriba][indexIzquierda] << 8);
-					poblacion |= (matrix[j][indexIzquierda] << 7);
-					poblacion |= (matrix[indexAbajo][indexIzquierda] << 6);
-					// Lado cetral
-					poblacion |= (matrix[indexArriba][i] << 5);
-					poblacion |= (matrix[j][i] << 4);
-					poblacion |= (matrix[indexAbajo][i] << 3);
-					// Lado Derecho
-					poblacion |= (matrix[indexArriba][indexDerecha] << 2);
-					poblacion |= (matrix[j][indexDerecha] << 1);
-					poblacion |= (matrix[indexAbajo][indexDerecha] << 0);
-
-				}
-                entropy[poblacion]++;
-            }
-        }
-
-    double entropia_valor = 0.0;
-    double total_celdas = (double)(n*n);
-
-    for (auto it : entropy){
-        double p = (double) it.second / (total_celdas);
-        entropia_valor -= (p * log2(p));
-    }
-
-    valores_grafica_entriopia.PB(entropia_valor);
-    entropy.clear();
-
-    return;
-}
-
+/*
 void abrirArchivo(GtkDialog *dialog, gint response_id, gpointer user_data) {
     // Si la respuesat fue "Aceptar", abrimos el archivo
     if (response_id == GTK_RESPONSE_ACCEPT) {
@@ -775,43 +290,141 @@ void handlerArchivo (string action){
 
     return;
 }
-
-void showGraphs(){
-
-    // Cremos el archivo para guardar los datos de la densidad poblacional
-    ofstream file("normal.txt");
-
-    // Ingresamos los datos al archivo
-    for (int i = 0; i < valores_grafica_normal.size(); i++)
-        file << valores_grafica_normal[i] << endl;
-
-    // Cerramos el archivo
-    file.close();
+*/
 
 
-    // Cremos el archivo para guardar los datos de la densidad poblacional
-    ofstream file2("entriopia.txt");
+// Donde van a estar las hormigas? -> map <pair<int,int> ant>
 
-    // Ingresamos los datos al archivo
-    for (int i = 0; i < valores_grafica_entriopia.size(); i++)
-        file2 << valores_grafica_entriopia[i] << endl;
+// Como voy a pintar la simulacion? -> list <list> cells;
 
-    // Cerramos el archivo
-    file2.close();
+// Como voy a saber el recorrido que hizo una hormiga? -> vector <set<pair<int,int> > > paths (4);
 
-    // Ejecutamos el programa para la visualización de las gráficas y limpiamos los archivos creados
-    int a = system("python3 graphs.py");
-    int b = system("rm normal.txt");
-    int c = system("rm entriopia.txt");
 
-    return;    
+void updateGraphics(){
+
+    // Limpiamos el tablero de juego con el color correspondiente
+    inner.clear(sf::Color(color_fondo[0], color_fondo[1], color_fondo[2]));
+
+    // Asignamos el tamaño correspondiente a cada celda dependiendo el zoom actual
+    sizeCelda_X = zoom[index_zoom];
+    sizeCelda_Y = zoom[index_zoom];
+
+    // Creamos la figura base de cada celda viva
+    sf :: RectangleShape celda(sf::Vector2f(sizeCelda_X, sizeCelda_Y));
+
+    // Hacemos las operaciones para saber cuantas celdas debemos imprimir en ambos ejes
+    int cantidad_x = 1400 /sizeCelda_X;
+    int cantidad_y = 700/sizeCelda_Y;
+
+
+    // Ponemos todas las hormigas en el tablero
+    // Si recorremos el arreglo temporal, tenemos que poner las etiquetas en cada celda
+    for (auto i : hormigas_temporal){
+        int x = i.first.first - index_visual_x;
+        int y = i.first.second - index_visual_y;
+
+        if (x >= 0 && x <= cantidad_x && y >= 0 && y <= cantidad_y){
+            auto hormiga = createRectangle(sizeCelda_X, sizeCelda_Y, x*sizeCelda_X, y*sizeCelda_Y, ">", sizeCelda_X, sizeCelda_X / 5, - (sizeCelda_Y / 7));
+            hormiga.first.setFillColor(sf::Color(color_hormigas[i.second.tipo][0], color_hormigas[i.second.tipo][1], color_hormigas[i.second.tipo][2]));
+            inner.draw(hormiga.first);
+            inner.draw(hormiga.second);
+        }
+    }
+
+    // Dibujamos las hormigas que tenemos pero unicamente el color que tiene cada una
+    for (auto i : hormigas){
+        int x = i.first.first - index_visual_x;
+        int y = i.first.second - index_visual_y;
+
+        if (x >= 0 && x <= cantidad_x && y >= 0 && y <= cantidad_y){
+            celda.setPosition(x * sizeCelda_X, y * sizeCelda_Y);
+            celda.setFillColor(sf::Color(color_hormigas[i.second.tipo][0], color_hormigas[i.second.tipo][1], color_hormigas[i.second.tipo][2]));
+            inner.draw(celda);
+        }
+    }
+
+
+    // Recorremos la estructura de datos en la que almacenamos las celdas vivas
+    for (auto i: celdas_vivas){
+        if (i.y - index_visual_y >= 0 && i.y - index_visual_y <= cantidad_y){
+            i.y -= index_visual_y;
+            for (auto x : i.x){
+                if (x - index_visual_x >= 0 && x - index_visual_x <= cantidad_x){
+                    x -= index_visual_x;
+                    celda.setPosition(x * sizeCelda_X, i.y * sizeCelda_Y);
+                    celda.setFillColor(sf::Color(255, 255, 255));
+                    inner.draw(celda);
+                }
+            }
+        }
+    }
+
+    return ;
+}
+
+void nextState(){
+    // Como unicamente tengo que tomar en cuenta las hormigas que estan vivas o que existen
+    // entonces estaria mejor que unicamente ocupe el arreglo de donde se encutran las hormigas, no?
+    // Distribucion del tipo de hormigas
+    // 1 -> Reinas
+    // 2 -> Trabajadoras
+    // 3 -> Reproductoras
+    // 4 -> Soldado
+}
+
+void boardHandler(int x, int y){
+    int rotacion = 0;
+    bool bandera_hormiga = (hormigas.find({x,y}) != hormigas.end());
+
+    // En caso de que exista la hormiga en el arreglo general, la movemos al arreglo temporal
+    if (bandera_hormiga){
+        Ant actual = hormigas[{x, y}];
+        hormigas.erase(hormigas.find({x,y}));
+
+        actual.direccion += 1;
+        actual.direccion %= 5;
+
+        if (actual.direccion != 0)
+            hormigas_temporal[{x,y}] = actual;
+    }
+    else{
+        // Bandera para conocer si es que existe la hormiga en el arreglo temporal
+        bool bandera_hormiga_temporal = (hormigas_temporal.find({x,y}) != hormigas_temporal.end());
+
+        // Existe la hormiga en el arreglo temporal? -> cambiar la direccion unicamente
+        if (bandera_hormiga_temporal){
+            Ant actual = hormigas_temporal[{x, y}];
+            actual.direccion += 1;
+            actual.direccion %= 5;
+
+            // En caso de que la direccion no sea la condicion para desaparecer unicamente cambiar su direccion
+            if (actual.direccion != 0)
+                hormigas_temporal[{x,y}] = actual;
+            else // En caso contrario, quitamos a la hormiga del arreglo temporal
+                hormigas_temporal.erase(hormigas_temporal.erase(hormigas_temporal.find({x,y})));
+        }
+        else{ // En caso de que la hormiga no existe en el arreglo temporal, quiere decir que es una nueva hormiga
+            Ant actual;
+            actual.direccion = 1;
+            actual.edad = 0;
+
+            /// --------------------------------------------------------------------------------------------------
+            actual.tipo = 1;
+            /// --------------------------------------------------------------------------------------------------
+
+            hormigas_temporal[{x,y}] = actual;
+        }
+    }
 
 }
 
+
+
 void actionHandler(string action){
 
-    if (action == "Evolucion Automatica" || action == "Siguiente Evolucion") {
 
+
+    if (action == "Evolucion Automatica" || action == "Siguiente Evolucion") {
         // En caso de que sea seleccionada la evolución automática, cambiamos la bandera referente
         if (action == "Evolucion Automatica") bandera_automatico = true;
         else bandera_automatico = false;
@@ -819,31 +432,11 @@ void actionHandler(string action){
         // Aumentamos el numero total de iteraciones
         total_iteraciones++;
 
-        // Reiniciamos las celdas vivas para la nueva generacion
-        live_cells.assign(live_cells_clean.begin(), live_cells_clean.end());
+        // En caso de que se haya presionado algun boton referente al estado del juego, hay que mover todas las hormigas 
+        // que estan dentro del arreglo temporal al arreglo general, significando que los cambios en las hormigas son aplicados
 
-        // Relizamos la siguiente evolución
-        handleNextStep(0, n-1, 0, n-1, 0); 
-
-        // Limpiamos el tablero de la nueva generacion y asignamos la siguiente evolución al
-        // tablero base
-        matrix.assign(matrix_next_gen.begin(), matrix_next_gen.end());
-        matrix_next_gen.assign(matrix_clean.begin(), matrix_clean.end());
-
-/////////////////////////////////////////////////////////////////////////////
-        // Calculamos la entropia de la nueva evolución
-        double entropia_valor = 0.0;
-        double total_celdas = (double)(n*n);
-
-        for (auto it : entropy){
-            double p = (double) it.second / (total_celdas);
-            entropia_valor -= (p * log2(p));
-        }
-
-        valores_grafica_entriopia.PB(entropia_valor);
-/////////////////////////////////////////////////////////////////////////////
-
-        entropy.clear();
+        for (auto i : hormigas_temporal) hormigas[i.first] = i.second;
+        hormigas_temporal.clear();
     }
 
     // Detenemos la evolución automatica si es el caso
@@ -862,6 +455,7 @@ void actionHandler(string action){
         // Dependiendo de la acción presionada, modificamos el valore del scroll
         if (action == ">" && index_visual_x + valor_scroll < n) index_visual_x += valor_scroll;
         else if (action == "<" && index_visual_x - valor_scroll >= 0) index_visual_x -= valor_scroll;
+        
         else if (action == "v" && index_visual_y + valor_scroll < n) index_visual_y += valor_scroll;
         else if (action == "^" && index_visual_y - valor_scroll >= 0) index_visual_y -= valor_scroll;
     }
@@ -870,119 +464,42 @@ void actionHandler(string action){
         // Reinicmaos todos los valores para el inicio de un nuevo juego
         total_celdas_vivas = 0;
         total_iteraciones = 0;
-
-        matrix = matrix_clean;
-        entropy.clear();
-        live_cells = live_cells_clean;
-        valores_grafica_entriopia.clear();
-        valores_grafica_normal.clear();
-
-        updateGameVisual();
     }
 
-    if (action == "Inicializar Juego"){ 
-        // Reiniciamos todos los valores para la creación de un nuevo juego 
-        index_visual_x = 0;
-        index_visual_y = 0;
-        valor_scroll = 1;
-        total_celdas_vivas = 0;
-        total_iteraciones = 0;
+    if (action == "Inicializar Juego"){
 
-        matrix.assign(matrix_clean.begin(), matrix_clean.end());
-        live_cells.assign(live_cells_clean.begin(), live_cells_clean.end());
-
-
-        valores_grafica_entriopia.clear();
-        valores_grafica_normal.clear();
-        entropy.clear();
-
-        // Pondremos los valores aleatoriamente con la ayuda del tiempo actual
-        srand(time(NULL));
-    
-        // Llenamos la matriz con los valores aleatorios
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < n; j++) {
-                if (!(rand() & 1)){
-                    matrix[j][i] = true;
-                    live_cells[j].PB(i);
-                    total_celdas_vivas++;
-                }
-            }
-        }
-
-        for (int j = 0; j < n ; j++){
-            for (int i = 0; i < n; i++){
-                int poblacion = 0;
-                if (bandera_nulo){
-					// Lado izquierdo
-					if (i - 1 >= 0){
-						if (j - 1 >= 0) poblacion |= ((int)matrix[j-1][i-1] << 8);
-                        poblacion |= ((int)matrix[j][i-1] << 7);
-						if (j + 1 < n) poblacion |= ((int)matrix[j+1][i-1] << 6);
-					}
-					// Lado central
-					if (j - 1 >= 0) poblacion |= ((int)matrix[j-1][i] << 5);
-                    poblacion |= ((int)matrix[j][i] << 4);
-					if (j + 1 < n) poblacion |= ((int)matrix[j+1][i] << 3);
-
-					// Lado Derecho
-					if (i + 1 < n){
-						if (j - 1 >= 0) poblacion |= ((int)matrix[j-1][i+1] << 2);
-                        poblacion |= ((int)matrix[j][i+1] << 1);
-						if (j + 1 < n) poblacion |= ((int)matrix[j+1][i+1] << 0);
-					}
-                }
-				else{
-                    int indexIzquierda = (i - 1 < 0 ? n - 1 : i - 1);
-                    int indexDerecha = (i + 1 >= n ? 0 : i + 1);
-                    
-					int indexArriba = (j - 1 < 0 ? n - 1 : j - 1);
-                    int indexAbajo = (j + 1 >= n ? 0 : j + 1);
-
-					// Lado inzquierdo
-					poblacion |= (matrix[indexArriba][indexIzquierda] << 8);
-					poblacion |= (matrix[j][indexIzquierda] << 7);
-					poblacion |= (matrix[indexAbajo][indexIzquierda] << 6);
-					// Lado cetral
-					poblacion |= (matrix[indexArriba][i] << 5);
-					poblacion |= (matrix[j][i] << 4);
-					poblacion |= (matrix[indexAbajo][i] << 3);
-					// Lado Derecho
-					poblacion |= (matrix[indexArriba][indexDerecha] << 2);
-					poblacion |= (matrix[j][indexDerecha] << 1);
-					poblacion |= (matrix[indexAbajo][indexDerecha] << 0);
-
-				}
-                entropy[poblacion]++;
-            }
-        }
-
-        //////////////////////////////////////////////////////////////////////////////////////////////////////
-        // Calulamos la entropia del nuevo juego creado
-        double entropia_valor = 0.0;
-        double total_celdas = (double)(n*n);
-
-        for (auto it : entropy){
-            double p = (double) it.second / (total_celdas);
-            entropia_valor -= (p * log2(p));
-        }
-
-        valores_grafica_entriopia.PB(entropia_valor);
-
-        //////////////////////////////////////////////////////////////////////////////////////////////////////
-        entropy.clear();
     }
 
     return;
 }
 
 
-
-
 int main() {
 
+    // y, x
+
+    celdas_vivas.push_back({0, {3}});
+    celdas_vivas.push_back({0, {5}});
+    celdas_vivas.push_back({0, {7}});
+    celdas_vivas.push_back({0, {9}});
+
+    index_zoom -= 3;
+
+    color_hormigas[0] = {255,99,71};
+    color_hormigas[1] = {50,205,50};
+    color_hormigas[2] = {175,238,238};
+    color_hormigas[3] = {221,160,221};
+
+    Ant actual;
+    actual.edad = 0;
+    actual.direccion = 1;
+    actual.tipo = 1;
+
+    hormigas[{0,0}] = actual;
+
+
     // Creamos la ventana principal en la cual tendra todos los botones y la ventana del juego
-    sf::RenderWindow outerWindow(sf::VideoMode(1650, 880), "Conway's Game of Life");
+    sf::RenderWindow outerWindow(sf::VideoMode(1650, 880), "Langton's Ant");
 
     // Le asignamos las dimensiones a la pantalla del juego
     inner.create(1400, 700);
@@ -998,7 +515,8 @@ int main() {
     innerSprite.setPosition(sf::Vector2f(distancia_X, distancia_Y));
 
     // Asignamos el color de fondo o de las celdas muertas 
-    inner.clear(sf::Color(color_muerto[0], color_muerto[1], color_muerto[2]));
+    inner.clear(sf::Color(color_fondo[0], color_fondo[1], color_fondo[2]));
+
 
 // BOTONES  ------------------------------------------------------------------------------------------------------------------------------------------------------------
     // Asignamos la fuente que vamos a ocupar en el programa
@@ -1006,66 +524,55 @@ int main() {
     
     // Creamos todos los diferentes botones y los ponemos dentro de un vector para facilitar su dibujo en pantalla y el evento de click
     vector<std::pair<sf::RectangleShape, sf::Text>> buttons = {
-        createButton(180,60, 20, 30, "Evolucion Automatica", 17, 6, 17),
-        createButton(180,60, 20, 120, "Detener", 17, 55, 17),
-        createButton(180,60, 20, 210, "Siguiente Evolucion", 17, 15, 17),
-        createButton(60, 50, 30, 300, "-", 25, 26, 8),
-        createButton(60, 50, 120, 300, "+", 25, 24, 10),
+        createRectangle(180,60, 20, 30, "Evolucion Automatica", 17, 6, 17),
+        createRectangle(180,60, 20, 120, "Detener", 17, 55, 17),
+        createRectangle(180,60, 20, 210, "Siguiente Evolucion", 17, 15, 17),
+        createRectangle(60, 50, 30, 300, "-", 25, 26, 8),
+        createRectangle(60, 50, 120, 300, "+", 25, 24, 10),
 
-        createButton(180, 50, 1200, 20, "Inicializar Juego", 17, 20, 14),
-        createButton(180, 50, 1450, 20, "Limpiar Juego", 17, 36, 14),
+        createRectangle(180, 50, 1200, 20, "Inicializar Juego", 17, 20, 14),
+        createRectangle(180, 50, 1450, 20, "Limpiar Juego", 17, 36, 14),
 
-        createButton(60, 30, 300, 30, "Toro", 20, 6, 2),
-        createButton(60, 30, 370, 30, "Nulo", 20, 6, 2),
+        createRectangle(60, 30, 300, 30, "Toro", 20, 6, 2),
+        createRectangle(60, 30, 370, 30, "Nulo", 20, 6, 2),
 
-        createButton(50, 45, 80, 400, "^", 32, 16, 5),
-        createButton(50, 45, 80, 450, "v", 24, 18, 5),
-        createButton(50, 40, 20, 425, "<", 24, 17, 5),
-        createButton(50, 40, 140, 425, ">", 24, 17, 5),
+        createRectangle(50, 45, 80, 400, "^", 32, 16, 5),
+        createRectangle(50, 45, 80, 450, "v", 24, 18, 5),
+        createRectangle(50, 40, 20, 425, "<", 24, 17, 5),
+        createRectangle(50, 40, 140, 425, ">", 24, 17, 5),
 
-        createButton(180, 60, 20, 620, "Seleccionar Color", 17, 20, 17),
-        createButton(180, 60, 20, 710, "Definir regla B/S", 17, 22, 18),
+        createRectangle(180, 60, 20, 620, "Seleccionar Color", 17, 20, 17),
+        createRectangle(180, 60, 20, 710, "Definir regla B/S", 17, 22, 18),
 
-        createButton(80, 50, 20, 800, "Guardar", 14, 15, 17),
-        createButton(80, 50, 110, 800, "Abrir", 14, 25  , 17),
+        createRectangle(80, 50, 20, 800, "Guardar", 14, 15, 17),
+        createRectangle(80, 50, 110, 800, "Abrir", 14, 25  , 17),
 
 
-        createButton(180, 50, 1450, 810, "Mostrar Graficas", 17, 18, 14)
+        createRectangle(180, 50, 1450, 810, "Mostrar Graficas", 17, 18, 14)
     };
+
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-    // Definimos las reglas iniciales del juego
-    regla_nacimineto.insert(3);
-    regla_sobrevivir.insert(2);
-    regla_sobrevivir.insert(3);
+    // Creamos un arreglo para poder tener las etiquetas necesarias en un solo lugar
+    vector <std::pair<sf::RectangleShape, sf::Text>> etiquetas = {
+        createRectangle(200, 50, 400, 810, "Iteracion : " + to_string(total_iteraciones), 20, 5, 13),
+        createRectangle(200, 50, 650, 810, "Celdas vivas : " + to_string(total_celdas_vivas), 18, 5, 13)
+    };
 
-    // Agregamos los recuadros para mostrar la cantidad de celdas vivas y la iteracion actual
-
-    sf::RectangleShape label_iteraciones(sf::Vector2f(200, 50));
-    label_iteraciones.setFillColor(sf::Color(194, 196, 208));
-    label_iteraciones.setPosition(400, 810);
-
-    sf::Text text_iteraciones("Iteracion : " + to_string(total_iteraciones), font, 20);
-    text_iteraciones.setFillColor(sf::Color::Black);
-    text_iteraciones.setPosition(label_iteraciones.getPosition().x + 5, label_iteraciones.getPosition().y + 13);
+    
+    
+    updateGraphics();
 
 
-    sf::RectangleShape label_celdas_vivas(sf::Vector2f(200, 50));
-    label_celdas_vivas.setFillColor(sf::Color(194, 196, 208));
-    label_celdas_vivas.setPosition(650, 810);
-
-    sf::Text text_celdas_vivas("Celdas vivas: " + to_string(total_celdas_vivas), font, 18);
-    text_celdas_vivas.setFillColor(sf::Color::Black);
-    text_celdas_vivas.setPosition(label_celdas_vivas.getPosition().x + 5, label_celdas_vivas.getPosition().y + 13);
 
 
     // Bucle que ocupamos para la pantalla mientras ésta esté presente
     while (outerWindow.isOpen()) {
-       //  updateGameVisual();
+        // Declaramos el manejador de eventos
         sf::Event event;
         
         // Limpiamos la pantalla principal y le colocamos un color de fondo
-        outerWindow.clear(sf::Color(92,117,140));
+        outerWindow.clear(sf::Color(51,65,78));
 
         // Checamos si es que en algun momento se tuvo algun evento
         while (outerWindow.pollEvent(event)) {
@@ -1080,35 +587,10 @@ int main() {
 
                 // De todos los botones presionados checamos cual fue presionado
                 for (int i = 0; i < buttons.size(); i++){
-                    
                     if (buttons[i].first.getGlobalBounds().contains(mousePosF)) {
                             // Si el boton fue presionado, lo mandamos a nuestra funcion de actionHandler
                             string action = buttons[i].second.getString();
-
-                            if (action == "Seleccionar Color"){ 
-                                outerWindow.setVisible(false);
-                                updateColors();
-                                outerWindow.setVisible(true);
-                            }
-                            else if (action == "Definir regla B/S"){
-                                outerWindow.setVisible(false);
-                                nueva_regla();
-                                outerWindow.setVisible(true);
-                            }
-                            else if(action == "Abrir" || action == "Guardar"){
-                                outerWindow.setVisible(false);
-                                handlerArchivo(action);
-                                if (action == "Abrir") updateValores();
-                                outerWindow.setVisible(true);
-                            }
-                            else if (action == "Mostrar Graficas" && !bandera_automatico){
-                                outerWindow.setVisible(false);
-                                showGraphs();
-                                outerWindow.setVisible(true);
-
-                            }
-
-                            else actionHandler(action);
+                            actionHandler(action);
                     }
                 }
 
@@ -1117,69 +599,50 @@ int main() {
                 // de esa manera saber que celda debemos cambiar su estado
                 if (innerSprite.getGlobalBounds().contains(mousePosF) && !bandera_automatico) {
                     // Primero debemos encotnrar las coordenadas de la celda presionada
-                    int x = (int)mousePosF.x - 230;
-                    int y = (int)mousePosF.y - 90;
+                    // 230 -> La diferencia entre la ventana de la simulacion y la interfaz grafica
+                    // 90 -> La diferencia entre la ventana de la simulacion y la interfaz grafica entre 2
+                    // Esto para llevar la posicion del mouse a la region a la venta de la simulacion
+                    // Para luego dividir entre el zoom de la simulacion para saber cuantas celdas son visibles 
+                    // para despues movernos la cantidad de celdas necesarias dependiendo del scroll
 
-                    // Asignamos el tama;o de la celda y para poder crearla 
-                    sizeCelda_X = zoom[index_zoom];
-                    sizeCelda_Y = zoom[index_zoom];
+                    int x = (((int)mousePosF.x - 230) / zoom[index_zoom]) + index_visual_x ;
+                    int y = (((int)mousePosF.y - 90) / zoom[index_zoom]) + index_visual_y;
 
-                    // Como estamos ocupando una matrix para el estado de las celdas, debemos saber los indices de esas celdas
-                    int index_x = x / sizeCelda_X;
-                    int index_y = y / sizeCelda_Y;
+                    boardHandler(x, y);
 
-                    // Por como se manejan las celdas, es necesario hacer el siguiente paso
-                    swap(index_x, index_y);
-
-                    index_x += index_visual_y;
-                    index_y += index_visual_x;
-
-                    // Cambiamos la celda a su estado contrario
-                    if (matrix[index_y][index_x] ) matrix[index_y][index_x] = false;
-                    else  matrix[index_y][index_x] = true;
-
-                    // En caso de que la celda este viva, hay que agregarla al arreglo que ocupamos para dibujar todo el juego
-                    // Pero en ambos casos dibujamos la celda en el tablero
-
-                    sf :: RectangleShape celda(sf::Vector2f(sizeCelda_X, sizeCelda_Y));
-                    celda.setPosition((index_y)*sizeCelda_X, (index_x)*sizeCelda_Y);
-
-                    if (matrix[index_y][index_x]) {
-                        live_cells[index_y].PB(index_x); 
-                        celda.setFillColor(sf::Color(color_vivo[0], color_vivo[1], color_vivo[2]));
-                        total_celdas_vivas++;
-                    }
-                    else{ // En caso contrario, tenemos que quitar esa misma celda
-                        for (list<int>:: iterator it = live_cells[index_y].begin(); it != live_cells[index_y].end(); it++){
-                            if (*it == index_x){
-                                live_cells[index_y].erase(it);
-                                // Creamos la celda, la posicionamos, ponemos color y la ponemos en el tablero 
-                                celda.setFillColor(sf::Color(color_muerto[0], color_muerto[1], color_muerto[2]));
-                                inner.draw(celda);
-                                total_celdas_vivas--;
-                                break;
-                            }
-                        }
-                    }
-
-                    inner.draw(celda);
+                    // Dentro de las coordenadas de x,y debo de ver la interaccion de esa celda con poner una hormiga o hacer algo
 
                 }
             }
+        
         }
 
-        if (bandera_automatico) actionHandler("Evolucion Automatica");
+        // Cambiamos el color del boton de 'Evolucion Automatica' en caso de que la opcion sea seleccionada
+        // para que se conozaca de mejor manera que la opcion fue seleccionada
+        // sabiendo que el boton se encuentra en la primer posicion del arreglo de los botones
+        if (bandera_automatico){
+            actionHandler("Evolucion Automatica");
+            buttons[0].first.setFillColor(sf::Color(96, 96, 96));
+        }
+        else{
+            buttons[0].first.setFillColor(sf::Color(200, 200, 200));
+        }
 
-        updateGameVisual();
+    
+        // updateGraphics();
+
+
+        // Funcion para la actualizacion de los elementos graficos de la sumulacion 
+        // updateGameVisual();
 
         // Primero mostramos la pantalla del juego para que no se tenga algun efecto de parpadeo
         inner.display();
 
-        // Colocamos en la ventana principal la ventana del juego
+        // Colocamos en la ventana principal la ventana de la simulacion
         outerWindow.draw(innerSprite);
         
         // -------------------------------------------------------------------------------------------------------------------------
-        // Colocamos los diferentes botones
+        // Colocamos los diferentes botones dentro de la interfaz grafica
         for (auto& button : buttons) {
             outerWindow.draw(button.first);
 
@@ -1193,23 +656,24 @@ int main() {
                 else button.first.setFillColor(sf::Color(96, 96, 96));
             }
 
-
-
             outerWindow.draw(button.second);
         }
         // -------------------------------------------------------------------------------------------------------------------------
 
+        // -------------------------------------------------------------------------------------------------------------------------
+        // Colocamos las diferentes etiquetas dentro de la interfaz grafica
+        for(int i = 0; i < etiquetas.size(); i++){
+            char etiqueta_char_inicial = etiquetas[i].second.getString()[0];
+            
+            // Hacemos una actualizacion en la informacion mostrada de las etiquetas dependiendo de la etiqueta
+            if (etiqueta_char_inicial == 'I') etiquetas[i].second.setString("Iteracion : " + to_string(total_iteraciones));
+            else if (etiqueta_char_inicial == 'C') etiquetas[i].second.setString("Celdas vivas : " + to_string(total_celdas_vivas));
 
-        text_iteraciones.setString("Iteracion : " + to_string(total_iteraciones));
-        text_celdas_vivas.setString("Celdas vivas : " + to_string(total_celdas_vivas));
-
-
-        outerWindow.draw(label_iteraciones);
-        outerWindow.draw(text_iteraciones);
-
-        outerWindow.draw(label_celdas_vivas);
-        outerWindow.draw(text_celdas_vivas);
-
+            // Mostramos la etiqueta junto con el recuadro en la interfaz
+            outerWindow.draw(etiquetas[i].first);
+            outerWindow.draw(etiquetas[i].second);
+        }
+        // -------------------------------------------------------------------------------------------------------------------------
 
         // Mostramos la pantalla principal con todos los elementos que colocamos anteriormente
         outerWindow.display();
