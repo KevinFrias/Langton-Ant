@@ -326,6 +326,17 @@ void updateGraphics(){
         if (x >= 0 && x <= cantidad_x && y >= 0 && y <= cantidad_y){
             auto hormiga = createRectangle(sizeCelda_X, sizeCelda_Y, x*sizeCelda_X, y*sizeCelda_Y, ">", sizeCelda_X, sizeCelda_X / 5, - (sizeCelda_Y / 7));
             hormiga.first.setFillColor(sf::Color(color_hormigas[i.second.tipo][0], color_hormigas[i.second.tipo][1], color_hormigas[i.second.tipo][2]));
+
+            string direccion_hormiga = "";
+
+            // 1 -> Arriba, 2-> Derecha, 3 -> Abajo, 4 -> Izquierda
+            if (i.second.direccion == 1) direccion_hormiga = "^";
+            if (i.second.direccion == 2) direccion_hormiga = ">";
+            if (i.second.direccion == 3) direccion_hormiga = "v";
+            if (i.second.direccion == 4) direccion_hormiga = "<";
+
+            hormiga.second.setString(direccion_hormiga);
+
             inner.draw(hormiga.first);
             inner.draw(hormiga.second);
         }
@@ -349,11 +360,14 @@ void updateGraphics(){
         if (i.y - index_visual_y >= 0 && i.y - index_visual_y <= cantidad_y){
             i.y -= index_visual_y;
             for (auto x : i.x){
-                if (x - index_visual_x >= 0 && x - index_visual_x <= cantidad_x){
-                    x -= index_visual_x;
-                    celda.setPosition(x * sizeCelda_X, i.y * sizeCelda_Y);
-                    celda.setFillColor(sf::Color(255, 255, 255));
-                    inner.draw(celda);
+                // Como queremos darle la priodidad a mostrar las hormigas dentro de la simulacion realizamos la sigueinte condicional
+                if (hormigas.find({x, i.y+index_visual_y}) == hormigas.end() && hormigas_temporal.find({x, i.y + index_visual_y}) == hormigas_temporal.end()){
+                    if (x - index_visual_x >= 0 && x - index_visual_x <= cantidad_x){
+                        x -= index_visual_x;
+                        celda.setPosition(x * sizeCelda_X, i.y * sizeCelda_Y);
+                        celda.setFillColor(sf::Color(255, 255, 255));
+                        inner.draw(celda);
+                    }
                 }
             }
         }
@@ -366,14 +380,13 @@ void nextState(){
     // Como unicamente tengo que tomar en cuenta las hormigas que estan vivas o que existen
     // entonces estaria mejor que unicamente ocupe el arreglo de donde se encutran las hormigas, no?
     // Distribucion del tipo de hormigas
-    // 1 -> Reinas
-    // 2 -> Trabajadoras
-    // 3 -> Reproductoras
-    // 4 -> Soldado
+    // 0 -> Reinas
+    // 1 -> Trabajadoras
+    // 2 -> Reproductoras
+    // 3 -> Soldado
 }
 
 void boardHandler(int x, int y){
-    int rotacion = 0;
     bool bandera_hormiga = (hormigas.find({x,y}) != hormigas.end());
 
     // En caso de que exista la hormiga en el arreglo general, la movemos al arreglo temporal
@@ -401,7 +414,7 @@ void boardHandler(int x, int y){
             if (actual.direccion != 0)
                 hormigas_temporal[{x,y}] = actual;
             else // En caso contrario, quitamos a la hormiga del arreglo temporal
-                hormigas_temporal.erase(hormigas_temporal.erase(hormigas_temporal.find({x,y})));
+                hormigas_temporal.erase(hormigas_temporal.find({x,y}));
         }
         else{ // En caso de que la hormiga no existe en el arreglo temporal, quiere decir que es una nueva hormiga
             Ant actual;
@@ -561,7 +574,7 @@ int main() {
 
     
     
-    updateGraphics();
+    // updateGraphics();
 
 
 
@@ -629,7 +642,7 @@ int main() {
         }
 
     
-        // updateGraphics();
+        updateGraphics();
 
 
         // Funcion para la actualizacion de los elementos graficos de la sumulacion 
