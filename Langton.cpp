@@ -393,7 +393,7 @@ int getProbability(){
     return dis(gen);
 }
 
-pair <int,int> possibleCell(int x, int y){
+pair <int,int> getPossibleCell(int x, int y){
     if (bandera_nulo){
         // Checamos todas las celdas ayacentas a ambas celdas y ponemos la nueva celda en la primer celda disponible
         // Arriba
@@ -416,7 +416,22 @@ pair <int,int> possibleCell(int x, int y){
 
         return {-1, -1};
     }
+    else{
+        int indexArriba  = (y - 1 >= 0 ? y - 1 : n - 1);
+        int indexAbajo = (y + 1 < n? y + 1 : 0);
 
+        for (int i = -1; i <= 2; i++){
+            int new_x = (x + i < 0 ? n - 1 : (x + i < n ? x + i : 0));
+            if (celdas_vivas.find({new_x, indexArriba}) == celdas_vivas.end()) return {new_x, indexArriba};
+            if (celdas_vivas.find({new_x, indexAbajo}) == celdas_vivas.end()) return {new_x, indexAbajo};
+        }
+
+        // Centro
+        if (celdas_vivas.find({(x - 1 >= 0 ? x - 1 : n - 1), y}) == celdas_vivas.end()) return {(x - 1 >= 0 ? x - 1 : n - 1), y};
+        if (celdas_vivas.find({(x + 2 < n ? x + 2 : n - 1), y}) == celdas_vivas.end()) return {(x + 2 < n ? x + 2 : n - 1), y};
+
+        return {-1, -1};
+    }
 }
 
 pair <int,int> checkMovement(int direccion, int x, int y){
@@ -467,9 +482,6 @@ pair <pair<int,int> ,Ant> checkFront(int direccion, int x, int y, bool bandera_n
     // 3 -> abajo
     // 4 -> izquierda
 
-    cout << bandera_nacimiento << endl;
-    cout << x << ", " << y << " - " << hormigas[{x,y}].direccion << " | " << (matrix[y][x] ? "Celda blanca" : "Celda negra") << endl;
-
     if (direccion == 1 || direccion == 3){
         // Si la direccion en la que llego la hormiga es 1, entonces cual debe ser su siguiente posicion a chear?
         // Pues el de la izquierda, bueno, dependiendo de la celda actual
@@ -514,10 +526,6 @@ pair <pair<int,int> ,Ant> checkFront(int direccion, int x, int y, bool bandera_n
         bool bandera_direccion = false;
         int existingDireccion = hormigas[{new_x, new_y}].direccion;
     
-        cout << new_x << ", " << new_y << " | " << (matrix[new_y][new_x] ? "Celda blanca" : "Celda negra") << endl;
-
-        cout << "Direccion a checar : " << existingDireccion;
-
         if (matrix[y][x] == true && (new_direccion == (existingDireccion % 4) + 1)){
             bandera_direccion = true;
         }
@@ -527,8 +535,6 @@ pair <pair<int,int> ,Ant> checkFront(int direccion, int x, int y, bool bandera_n
             if (matrix[y][x] == false && (new_direccion == existingDireccion)) bandera_direccion = true;
         }
 
-        cout << " | Se cumple la direccion?  ->  " << (bandera_direccion ? "Yes" : "No") << endl;
-
         if (bandera_nacimiento){
             // En caso de que alguna de las 2 hormigas involucradas ya haya sido tomada en cuenta, no sigo con la condicion ya que nacerian muchas 
             // mas hormigas
@@ -537,7 +543,6 @@ pair <pair<int,int> ,Ant> checkFront(int direccion, int x, int y, bool bandera_n
 
             // Si yo soy reprodcutora, busco a la reina, y si se cumple la condicion de 180 grados, nace una nueva hormiga
             if (hormigas[{x,y}].tipo == 2 && hormigas[{new_x, new_y}].tipo == 0 && bandera_direccion){
-                cout << "Nacimiento hormiga" << endl;
                 nacimiento_condicion.insert({x,y});
                 nacimiento_condicion.insert({new_x,new_y});
                 Ant actual;
@@ -545,28 +550,26 @@ pair <pair<int,int> ,Ant> checkFront(int direccion, int x, int y, bool bandera_n
                 actual.direccion = 0;
                 actual.tipo = 3;
 
-
-
-                return {{x, y}, actual};
+                pair <int,int> coordenadas_posibles = getPossibleCell(x, y);
+                return {coordenadas_posibles, actual};
             }
 
             // Si yo soy reina, busca la reprodcutora
             if (hormigas[{x,y}].tipo == 0 && hormigas[{new_x, new_y}].tipo == 2 && bandera_direccion){
-                cout << "Nacimiento hormiga" << endl;
                 nacimiento_condicion.insert({x,y});
                 nacimiento_condicion.insert({new_x,new_y});
                 Ant actual;
                 actual.edad = 0;
                 actual.direccion = 0;
                 actual.tipo = 3;
-                return {{x, y}, actual};
+                pair <int,int> coordenadas_posibles = getPossibleCell(x, y);
+                return {coordenadas_posibles, actual};
             }
         }
 
         else{ // En caso de que no queramos buscar la condicion de nacimiento, buscaremos 2 hormigas reinas
 
             if (hormigas[{x,y}].tipo == 0 && hormigas[{new_x, new_y}].tipo == 0 && bandera_direccion){
-                cout << "Muerte hormigas" << endl;
                 int edad_a = hormigas[{original_x, original_y}].edad;
                 int edad_b = hormigas[{new_x, new_y}].edad;
 
@@ -579,7 +582,6 @@ pair <pair<int,int> ,Ant> checkFront(int direccion, int x, int y, bool bandera_n
                     int condicional = (edad_a < 60 ? 50 : 20);
 
                     if (probabilidad <= condicional){
-                        cout << "Muerte reina original" << endl;
                         borrar.insert({original_x, original_y});
                         control.first = INT_MAX;
                     }
@@ -588,7 +590,6 @@ pair <pair<int,int> ,Ant> checkFront(int direccion, int x, int y, bool bandera_n
                     condicional = (edad_b < 60 ? 50 : 20);
 
                     if (probabilidad <= condicional) {
-                        cout << "Muerte reina segunda" << endl;
                         borrar.insert({new_x, new_y});
                         control.second = INT_MAX;
                     }
@@ -663,7 +664,6 @@ void nextState(){
                     // Comprobamos si la condicion en donde dos reinas se encuentren
                     if (i->second.tipo == 0) {
                         checkFront(i->second.direccion, x, y, false);
-                        cout << endl;
                     }
 
                     else{
@@ -846,17 +846,9 @@ int main() {
 
     color_hormigas[0] = {255,99,71};
     color_hormigas[1] = {50,205,50};
-    color_hormigas[2] = {175,238,238};
+    color_hormigas[2] = {0,102,204};
     color_hormigas[3] = {221,160,221};
 
-/*
-    Ant actual;
-    actual.edad = 0;
-    actual.direccion = 1;
-    actual.tipo = 0;
-
-    hormigas[{0,0}] = actual;
-*/
 
     // Creamos la ventana principal en la cual tendra todos los botones y la ventana del juego
     sf::RenderWindow outerWindow(sf::VideoMode(1650, 880), "Langton's Ant");
