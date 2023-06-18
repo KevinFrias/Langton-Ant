@@ -19,11 +19,10 @@ struct Ant {
 };
 
 // La densidad de hormigas la guardaremos dentro de un arreglo para tener un control general de este
+vector <int> densidad_hormigas(4, 0);
 
-// Hashmap para el control del color de las hormigas dependiendo de su tipo en caso de 
-// que se quieran mostrar las etiquetas
-map <int, tuple<int,int,int>> colors;
-
+// Variable de ayuda para el control de la distribucion de hormigas dentro del tablero
+int distribucion_n = 100;
 
 // Matrices necesarias para los diferentes estados de la simulacion
 // Son enteros ya que guardaremos el tipo de hormiga en cada celda
@@ -382,6 +381,17 @@ int getNewPosition(vector <int> direcciones){
     return direcciones[randomIndex];
 }
 
+int getIndices(){
+    // Generar un generador de números aleatorios
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    // Crear una distribución uniforme para las coordenadas
+    std::uniform_int_distribution<int> distribution(0, n - 1);
+
+    return (distribution(gen));
+}
+
 int getProbability(){
      // Creamos un generador de numeros aleatorios
     std::random_device rd;
@@ -604,7 +614,6 @@ pair <pair<int,int> ,Ant> checkFront(int direccion, int x, int y, bool bandera_n
     return {{-1, -1}, {}};
 }
 
-
 void nextState(){
     // Como unicamente tengo que tomar en cuenta las hormigas que estan vivas o que existen
     // entonces estaria mejor que unicamente ocupe el arreglo de donde se encutran las hormigas, no?
@@ -772,9 +781,6 @@ void actionHandler(string action){
         if (action == "Evolucion Automatica") bandera_automatico = true;
         else bandera_automatico = false;
 
-        // Aumentamos el numero total de iteraciones
-        total_iteraciones++;
-
         // En caso de que se haya presionado algun boton referente al estado del juego, hay que mover todas las hormigas 
         // que estan dentro del arreglo temporal al arreglo general, significando que los cambios en las hormigas son aplicados
 
@@ -782,16 +788,20 @@ void actionHandler(string action){
         hormigas_temporal.clear();
 
         nextState();
+        // Aumentamos el numero total de iteraciones
+
+        total_iteraciones++;
+        total_celdas_vivas = celdas_vivas.size();
     }
 
     // Detenemos la evolución automatica si es el caso
     if (action == "Detener") bandera_automatico = false;
 
+    // Cambiamos la seleccion del tipo de hormiga que se agrega a la simulacion
     if (action == "Reina") hormiga_tipo_tablero = 0;
     if (action == "Trabajadora") hormiga_tipo_tablero = 1;
     if (action == "Reproductora") hormiga_tipo_tablero = 2;
     if (action == "Soldado") hormiga_tipo_tablero = 3;
-
 
     // Aumentamos o disminuimos la cantidad de zoom dependiendo del usuario
     if (action == "+" || action == "-") {
@@ -815,10 +825,46 @@ void actionHandler(string action){
         // Reinicmaos todos los valores para el inicio de un nuevo juego
         total_celdas_vivas = 0;
         total_iteraciones = 0;
+
+        celdas_vivas.clear();
+        hormigas_temporal.clear();
+        hormigas.clear();
+        borrar.clear();
+        nacimiento_condicion.clear();
+
+        valores_grafica_normal.clear();
+        valores_grafica_entriopia.clear();
+        entropy.clear();
+
+        index_visual_x = 0;
+        index_visual_y = 0;
+        valor_scroll = 1;
+
+        bandera_automatico = false;
     }
 
     if (action == "Inicializar Juego"){
+        int index = 3;
 
+        while(index--){
+            int cantidad_hormigas_tipo = (distribucion_n * distribucion_n) / densidad_hormigas[0];
+            while(cantidad_hormigas_tipo--){
+                int x, y;
+
+                while(true){
+                    x = getIndices();                  
+                    y = getIndices();
+                    if (hormigas.find({x,y}) == hormigas.end()) break;
+                }
+
+                Ant hormiga_actual;
+                hormiga_actual.edad = 0;
+                hormiga_actual.direccion = 1;
+                hormiga_actual.tipo = index;
+
+                hormigas[{x,y}] = hormiga_actual;
+            }
+        }
     }
 
     return;
@@ -848,6 +894,12 @@ int main() {
     color_hormigas[1] = {50,205,50};
     color_hormigas[2] = {0,102,204};
     color_hormigas[3] = {221,160,221};
+
+
+    densidad_hormigas[0] = 1;
+    densidad_hormigas[1] = 55;
+    densidad_hormigas[2] = 9;
+    densidad_hormigas[3] = 35;
 
 
     // Creamos la ventana principal en la cual tendra todos los botones y la ventana del juego
@@ -941,6 +993,15 @@ int main() {
                     if (buttons[i].first.getGlobalBounds().contains(mousePosF)) {
                             // Si el boton fue presionado, lo mandamos a nuestra funcion de actionHandler
                             string action = buttons[i].second.getString();
+
+                            // Inicializar juego
+
+                            // Seleccionar color
+
+                            // Guardar abrir
+
+                            // Mostrar graficas
+
                             actionHandler(action);
                     }
                 }
