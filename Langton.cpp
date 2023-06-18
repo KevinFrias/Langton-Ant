@@ -28,8 +28,7 @@ map <int, tuple<int,int,int>> colors;
 // Matrices necesarias para los diferentes estados de la simulacion
 // Son enteros ya que guardaremos el tipo de hormiga en cada celda
 vector <vector <bool> > matrix(n, vector <bool> (n, false));
-vector <vector <bool> > matrix_next(n, vector <bool> (n, false));
-vector <vector <bool> > matrix_clean(n, vector <bool> (n, false));
+map <pair<int,int>, bool> cambios_matrix;
 
 
 // Arreglo para mantener el control de las hormigas que existen
@@ -47,8 +46,11 @@ map < pair<int,int>, Ant> hormigas_temporal;
 
 // Arreglo para mantener el control de las hormigas que mueren en la siguiente iteracion para evitar 
 // errores dentro del codigo
-
 set < pair<int,int> > borrar;
+set<pair<int,int>> nacimiento_condicion;
+
+// Indicador para conocer la seleccion de la hormiga a colocar en el tablero
+int hormiga_tipo_tablero = 0;
 
 
 // Arreglos para manetener un control de todos los valores que se usan en las graficas
@@ -391,6 +393,32 @@ int getProbability(){
     return dis(gen);
 }
 
+pair <int,int> possibleCell(int x, int y){
+    if (bandera_nulo){
+        // Checamos todas las celdas ayacentas a ambas celdas y ponemos la nueva celda en la primer celda disponible
+        // Arriba
+        if (y - 1 >= 0){
+            for (int i = -1; i <= 2; i++)
+                if (celdas_vivas.find({x + i, y - 1}) == celdas_vivas.end()) return {x + i, y - 1};
+        }
+
+        // Centro
+        if (x - 1 >= 0)
+            if (celdas_vivas.find({x - 1, y}) == celdas_vivas.end()) return {x - 1, y};
+        if (x + 2 < n)
+            if (celdas_vivas.find({x + 2, y}) == celdas_vivas.end()) return {x + 2, y};
+
+        // Abajo
+        if (y + 1 < n){
+            for (int i = -1; i <= 2; i++)
+                if (celdas_vivas.find({x + i, y + 1}) == celdas_vivas.end()) return {x + i, y + 1};
+        }
+
+        return {-1, -1};
+    }
+
+}
+
 pair <int,int> checkMovement(int direccion, int x, int y){
     // Direccion 5:
     // 1 -> arriba
@@ -426,7 +454,7 @@ pair <int,int> checkMovement(int direccion, int x, int y){
     return {-1,-1};
 }
 
-pair <pair<int,int> ,Ant> checkFront(int direccion, int x, int y, bool nacimiento){
+pair <pair<int,int> ,Ant> checkFront(int direccion, int x, int y, bool bandera_nacimiento){
     int original_x = x;
     int original_y = y;
 
@@ -434,51 +462,111 @@ pair <pair<int,int> ,Ant> checkFront(int direccion, int x, int y, bool nacimient
     int new_y = y;
     int new_direccion = 1;
 
-    if (direccion == 1){
-        if (new_y - 1 >= 0) new_y -= 1;
-        else if (bandera_nulo) new_y = n -1;
+    // 1 -> arriba
+    // 2 -> derecha
+    // 3 -> abajo
+    // 4 -> izquierda
 
-        new_direccion = 3;
+    cout << bandera_nacimiento << endl;
+    cout << x << ", " << y << " - " << hormigas[{x,y}].direccion << " | " << (matrix[y][x] ? "Celda blanca" : "Celda negra") << endl;
 
-    }
-    else if (direccion == 2){
-        if (new_x + 1 < n) new_x += 1;
-        else
-            if (bandera_nulo) new_x = 0;
-        
-        new_direccion = 4;
-    }
-    else if (direccion == 3){
-        if (new_y + 1 < n) new_y += 1;
-        else
-            if (bandera_nulo) new_y = 0;
+    if (direccion == 1 || direccion == 3){
+        // Si la direccion en la que llego la hormiga es 1, entonces cual debe ser su siguiente posicion a chear?
+        // Pues el de la izquierda, bueno, dependiendo de la celda actual
 
-        new_direccion = 1;
+        // En caso de que la celda donde se encuentre encendida, quiere decir que va a realizar un giro a la derecha
+        if (matrix[original_y][original_x] == true){
+            new_direccion = (direccion == 1 ? 2 : 4);
+        }
+        else // En caso contrario, va a realizar un giro a la izquierda
+            new_direccion = (direccion == 1 ? 4 : 2);
+
+        if (new_direccion == 4) {
+            if (new_x - 1 >= 0) new_x -= 1;
+            else if (bandera_nulo) new_x = n -1;
+        }
+        else {
+            if (new_x + 1 < n) new_x += 1;
+            else if (bandera_nulo) new_x = 0;
+        }  
     }
     else{
-        if (new_x - 1 >= 0) new_x -= 1;
+        if (matrix[original_y][original_x] == true)
+            new_direccion = (direccion == 2 ? 3 : 1);
         else
-            if (bandera_nulo) new_x = n -1;
+            new_direccion = (direccion == 2 ? 1 : 3);
 
-        new_direccion = 2;
+        if (new_direccion == 1){
+            if (new_y - 1 >= 0) new_y -= 1;
+            else if (bandera_nulo) new_y = n -1;
+        }
+        else {
+            if (new_y + 1 < n) new_y += 1;
+            else if (bandera_nulo) new_y = 0;
+        }
     }
 
-    // Ya camprobamos que existe una hormiga en frente
+    // Ya camprobamos que existe    una hormiga en frente
     if (hormigas.find({new_x, new_y}) != hormigas.end()){
+
         // Comprobamos de que la reina que se encuentre en frente sea reina y se encuentre con direccion a nosotros
-        if (hormigas[{new_x, new_y}].tipo == 0 && hormigas[{new_x, new_y}].direccion == new_direccion){
-            // En caso de que se aplique la condicion de nacimeinto la agregamos
-            if (nacimiento){
+
+        bool bandera_direccion = false;
+        int existingDireccion = hormigas[{new_x, new_y}].direccion;
+    
+        cout << new_x << ", " << new_y << " | " << (matrix[new_y][new_x] ? "Celda blanca" : "Celda negra") << endl;
+
+        cout << "Direccion a checar : " << existingDireccion;
+
+        if (matrix[y][x] == true && (new_direccion == (existingDireccion % 4) + 1)){
+            bandera_direccion = true;
+        }
+        else{
+            existingDireccion -= 1;
+            existingDireccion = (existingDireccion == 0 ? 4 : existingDireccion);
+            if (matrix[y][x] == false && (new_direccion == existingDireccion)) bandera_direccion = true;
+        }
+
+        cout << " | Se cumple la direccion?  ->  " << (bandera_direccion ? "Yes" : "No") << endl;
+
+        if (bandera_nacimiento){
+            // En caso de que alguna de las 2 hormigas involucradas ya haya sido tomada en cuenta, no sigo con la condicion ya que nacerian muchas 
+            // mas hormigas
+            if (nacimiento_condicion.find({x, y}) != nacimiento_condicion.end() || nacimiento_condicion.find({new_x, new_y}) != nacimiento_condicion.end())
+                bandera_direccion = false;
+
+            // Si yo soy reprodcutora, busco a la reina, y si se cumple la condicion de 180 grados, nace una nueva hormiga
+            if (hormigas[{x,y}].tipo == 2 && hormigas[{new_x, new_y}].tipo == 0 && bandera_direccion){
+                cout << "Nacimiento hormiga" << endl;
+                nacimiento_condicion.insert({x,y});
+                nacimiento_condicion.insert({new_x,new_y});
                 Ant actual;
                 actual.edad = 0;
-                actual.direccion = 1;
+                actual.direccion = 0;
                 actual.tipo = 3;
-                hormigas_temporal[{original_x, original_y}] = actual;
 
-                return {{new_x, new_y}, actual};
+
+
+                return {{x, y}, actual};
             }
-            else{ // Comprobamos la condicion de decesos de las hormigas reinas
 
+            // Si yo soy reina, busca la reprodcutora
+            if (hormigas[{x,y}].tipo == 0 && hormigas[{new_x, new_y}].tipo == 2 && bandera_direccion){
+                cout << "Nacimiento hormiga" << endl;
+                nacimiento_condicion.insert({x,y});
+                nacimiento_condicion.insert({new_x,new_y});
+                Ant actual;
+                actual.edad = 0;
+                actual.direccion = 0;
+                actual.tipo = 3;
+                return {{x, y}, actual};
+            }
+        }
+
+        else{ // En caso de que no queramos buscar la condicion de nacimiento, buscaremos 2 hormigas reinas
+
+            if (hormigas[{x,y}].tipo == 0 && hormigas[{new_x, new_y}].tipo == 0 && bandera_direccion){
+                cout << "Muerte hormigas" << endl;
                 int edad_a = hormigas[{original_x, original_y}].edad;
                 int edad_b = hormigas[{new_x, new_y}].edad;
 
@@ -491,15 +579,16 @@ pair <pair<int,int> ,Ant> checkFront(int direccion, int x, int y, bool nacimient
                     int condicional = (edad_a < 60 ? 50 : 20);
 
                     if (probabilidad <= condicional){
+                        cout << "Muerte reina original" << endl;
                         borrar.insert({original_x, original_y});
                         control.first = INT_MAX;
-                        cout << "Se elimino la hormiga original -> " << original_x << " - " << original_y << endl;
                     }
 
                     probabilidad = getProbability();
                     condicional = (edad_b < 60 ? 50 : 20);
 
                     if (probabilidad <= condicional) {
+                        cout << "Muerte reina segunda" << endl;
                         borrar.insert({new_x, new_y});
                         control.second = INT_MAX;
                     }
@@ -508,8 +597,8 @@ pair <pair<int,int> ,Ant> checkFront(int direccion, int x, int y, bool nacimient
                 return {control, {}};
             }
         }
-    }
 
+    }
 
     return {{-1, -1}, {}};
 }
@@ -524,9 +613,9 @@ void nextState(){
     // 2 -> Reproductoras
     // 3 -> Soldado
 
+
     // Que tengo que recorrer? Tengo que checar el arreglo de las hormigas
     map<pair<int,int>, Ant>:: iterator i = hormigas.begin();
-
     map <pair<int,int>, Ant> nacimiento;
 
     while(i != hormigas.end()){
@@ -541,25 +630,19 @@ void nextState(){
                 i->second.edad += 1;
 
                 int direccion = i->second.direccion;
-
                 // Checamos la condicion y comprobar si es que alguna nueva hormiga nace
 
-                if (matrix[y][x]){
+                if (matrix[y][x] == true){
                     direccion = (direccion + 1) % 5;
                     direccion += (direccion == 0 ? 1 : 0);
+                    cambios_matrix[{x,y}] = false;
+                    celdas_vivas.erase({x, y});
                 }
                 else{
                     direccion -= 1;
                     direccion = (direccion == 0 ? 4 : direccion); 
-                }
-
-                if (matrix[y][x] == false){
-                    matrix[y][x] = true;
+                    cambios_matrix[{x,y}] = true;
                     celdas_vivas.insert({x, y});
-                }
-                else {
-                    matrix[y][x] = false;
-                    celdas_vivas.erase({x, y});
                 }
 
                 pair <int,int> coordenadas = checkMovement(direccion, x , y);
@@ -578,8 +661,10 @@ void nextState(){
                     // por lo que aplicamos las condiciones de nacimiento y de muerte de hormigas
                     
                     // Comprobamos si la condicion en donde dos reinas se encuentren
-                    if (i->second.tipo == 0) 
+                    if (i->second.tipo == 0) {
                         checkFront(i->second.direccion, x, y, false);
+                        cout << endl;
+                    }
 
                     else{
                         // En caso de que la hormiga actual sea reproductora queremos comprobar si se da la condicion de nacimiento
@@ -627,6 +712,8 @@ void nextState(){
     for (auto i : nacimiento)
         hormigas[{i.first.first, i.first.second}] = i.second;
 
+    for (auto i : cambios_matrix)
+        matrix[i.first.second][i.first.first] = i.second; 
 
     borrar.clear();
 
@@ -669,7 +756,7 @@ void boardHandler(int x, int y){
             actual.edad = 0;
 
             /// --------------------------------------------------------------------------------------------------
-            actual.tipo = 1;
+            actual.tipo = hormiga_tipo_tablero;
             /// --------------------------------------------------------------------------------------------------
 
             hormigas_temporal[{x,y}] = actual;
@@ -699,6 +786,12 @@ void actionHandler(string action){
 
     // Detenemos la evolución automatica si es el caso
     if (action == "Detener") bandera_automatico = false;
+
+    if (action == "Reina") hormiga_tipo_tablero = 0;
+    if (action == "Trabajadora") hormiga_tipo_tablero = 1;
+    if (action == "Reproductora") hormiga_tipo_tablero = 2;
+    if (action == "Soldado") hormiga_tipo_tablero = 3;
+
 
     // Aumentamos o disminuimos la cantidad de zoom dependiendo del usuario
     if (action == "+" || action == "-") {
@@ -740,6 +833,14 @@ int main() {
     celdas_vivas.insert({5, 0});
     celdas_vivas.insert({7, 0});
     celdas_vivas.insert({9, 0});
+    celdas_vivas.insert({5, 3});
+
+    matrix[0][3] = true;
+    matrix[0][5] = true;
+    matrix[0][7] = true;
+    matrix[0][9] = true;
+    matrix[3][5] = true;
+
 
     index_zoom -= 3;
 
@@ -804,18 +905,23 @@ int main() {
         createRectangle(180, 60, 20, 710, "Definir regla B/S", 17, 22, 18),
 
         createRectangle(80, 50, 20, 800, "Guardar", 14, 15, 17),
-        createRectangle(80, 50, 110, 800, "Abrir", 14, 25  , 17),
+        createRectangle(80, 50, 110, 800, "Abrir", 14, 25, 17),
 
+        createRectangle(180, 50, 1450, 810, "Mostrar Graficas", 17, 18, 14),
 
-        createRectangle(180, 50, 1450, 810, "Mostrar Graficas", 17, 18, 14)
+        createRectangle(80, 50, 850, 810, "Reina", 16, 15, 17),
+        createRectangle(120, 50, 950, 810, "Trabajadora", 16, 13, 17),
+        createRectangle(120, 50, 1090, 810, "Reproductora", 16, 12, 17),
+        createRectangle(90, 50, 1230, 810, "Soldado", 16, 15, 17),
+
     };
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
     // Creamos un arreglo para poder tener las etiquetas necesarias en un solo lugar
     vector <std::pair<sf::RectangleShape, sf::Text>> etiquetas = {
-        createRectangle(200, 50, 400, 810, "Iteracion : " + to_string(total_iteraciones), 20, 5, 13),
-        createRectangle(200, 50, 650, 810, "Celdas vivas : " + to_string(total_celdas_vivas), 18, 5, 13)
+        createRectangle(200, 50, 250, 810, "Iteracion : " + to_string(total_iteraciones), 20, 5, 13),
+        createRectangle(200, 50, 500, 810, "Celdas vivas : " + to_string(total_celdas_vivas), 18, 5, 13)
     };
     
 
@@ -878,9 +984,16 @@ int main() {
             buttons[0].first.setFillColor(sf::Color(200, 200, 200));
         }
 
-    
-        updateGraphics();
+        // Sabiendo de los indices de los botones para los diferentes tipos de hormiga, mostramos de manera
+        // mas clara que hormiga es seleccionada al momento de ponerla dentro de la simulacion
+        for (int i = 18; i <= 21; i++)
+            buttons[i].first.setFillColor(sf::Color(200,200,200,200));
 
+        buttons[18 + hormiga_tipo_tablero].first.setFillColor(sf::Color(96, 96, 96));
+    
+
+
+        updateGraphics();
 
         // Funcion para la actualizacion de los elementos graficos de la sumulacion 
         // updateGameVisual();
