@@ -45,6 +45,12 @@ map < pair<int,int>, Ant> hormigas;
 map < pair<int,int>, Ant> hormigas_temporal;
 
 
+// Arreglo para mantener el control de las hormigas que mueren en la siguiente iteracion para evitar 
+// errores dentro del codigo
+
+set < pair<int,int> > borrar;
+
+
 // Arreglos para manetener un control de todos los valores que se usan en las graficas
 vector <int> valores_grafica_normal;
 vector <int> valores_grafica_entriopia;
@@ -366,14 +372,23 @@ int getNewPosition(vector <int> direcciones){
     std::random_device rd;
     std::mt19937 gen(rd());
 
-    set <int> direccion = {2,3};
-
     // Seleccionamos un numero entre 1 y 2 para las posiciones disponibles
     std::uniform_int_distribution<> dis(0, direcciones.size() - 1);
 
     int randomIndex = dis(gen);
 
     return direcciones[randomIndex];
+}
+
+int getProbability(){
+     // Creamos un generador de numeros aleatorios
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    // Seleccionamos un numero entre 1 y 2 para las posiciones disponibles
+    std::uniform_int_distribution<> dis(0, 100);
+
+    return dis(gen);
 }
 
 pair <int,int> checkMovement(int direccion, int x, int y){
@@ -411,12 +426,92 @@ pair <int,int> checkMovement(int direccion, int x, int y){
     return {-1,-1};
 }
 
+pair <pair<int,int> ,Ant> checkFront(int direccion, int x, int y, bool nacimiento){
+    int original_x = x;
+    int original_y = y;
 
-bool checkFront(int direccion, int x, int y, bool nacimiento){
-    int tipo = hormigas[{x, y}].tipo;
+    int new_x = x;
+    int new_y = y;
+    int new_direccion = 1;
+
+    if (direccion == 1){
+        if (new_y - 1 >= 0) new_y -= 1;
+        else if (bandera_nulo) new_y = n -1;
+
+        new_direccion = 3;
+
+    }
+    else if (direccion == 2){
+        if (new_x + 1 < n) new_x += 1;
+        else
+            if (bandera_nulo) new_x = 0;
+        
+        new_direccion = 4;
+    }
+    else if (direccion == 3){
+        if (new_y + 1 < n) new_y += 1;
+        else
+            if (bandera_nulo) new_y = 0;
+
+        new_direccion = 1;
+    }
+    else{
+        if (new_x - 1 >= 0) new_x -= 1;
+        else
+            if (bandera_nulo) new_x = n -1;
+
+        new_direccion = 2;
+    }
+
+    // Ya camprobamos que existe una hormiga en frente
+    if (hormigas.find({new_x, new_y}) != hormigas.end()){
+        // Comprobamos de que la reina que se encuentre en frente sea reina y se encuentre con direccion a nosotros
+        if (hormigas[{new_x, new_y}].tipo == 0 && hormigas[{new_x, new_y}].direccion == new_direccion){
+            // En caso de que se aplique la condicion de nacimeinto la agregamos
+            if (nacimiento){
+                Ant actual;
+                actual.edad = 0;
+                actual.direccion = 1;
+                actual.tipo = 3;
+                hormigas_temporal[{original_x, original_y}] = actual;
+
+                return {{new_x, new_y}, actual};
+            }
+            else{ // Comprobamos la condicion de decesos de las hormigas reinas
+
+                int edad_a = hormigas[{original_x, original_y}].edad;
+                int edad_b = hormigas[{new_x, new_y}].edad;
+
+                int delta = abs(edad_a - edad_b);
+                pair <int,int> control;
+
+                if (delta <= 10){
+                    // Tenemos una probabilidad del 50% de que una hormiga desaparezca
+                    int probabilidad = getProbability();
+                    int condicional = (edad_a < 60 ? 50 : 20);
+
+                    if (probabilidad <= condicional){
+                        borrar.insert({original_x, original_y});
+                        control.first = INT_MAX;
+                        cout << "Se elimino la hormiga original -> " << original_x << " - " << original_y << endl;
+                    }
+
+                    probabilidad = getProbability();
+                    condicional = (edad_b < 60 ? 50 : 20);
+
+                    if (probabilidad <= condicional) {
+                        borrar.insert({new_x, new_y});
+                        control.second = INT_MAX;
+                    }
+                }
+
+                return {control, {}};
+            }
+        }
+    }
 
 
-
+    return {{-1, -1}, {}};
 }
 
 
@@ -434,135 +529,106 @@ void nextState(){
 
     map <pair<int,int>, Ant> nacimiento;
 
-    for (; i != hormigas.end(); i++){
+    while(i != hormigas.end()){
         int x = i->first.first;
         int y = i->first.second;
 
-        // En caso de que la hormiga cumpla con la condicion maxima de iteraciones, se quitara de la simulacion
-        if (i->second.edad == 80) hormigas.erase(i);
-        else {
-            i->second.edad += 1;
-            
-            // En caso de que la hormiga que estamos checando sea reproductora, comprobamos si es que se cumple
-            // la regla de nacimiento
-            if (i->second.tipo == 2){
-                if (i->second.direccion == 1){
-                    int arriba = i->first.second;
-                    if (arriba - 1 >= 0) arriba -= 1;
-                    else if (bandera_nulo) arriba = n -1;
-
-                    if (hormigas.find({x, arriba}) != hormigas.end())
-                        if (hormigas[{x, arriba}].tipo == 0 && hormigas[{x, arriba}].direccion == 3){
-                            nacimiento[{x, y}] = i->second;
-                            nacimiento[{x, y}].edad = 0;
-                            nacimiento[{x, y}].tipo = 3;
-                        }
-                }
-
-                else if (i->second.direccion == 2){
-                    int derecha = i->first.first;
-                    if (derecha + 1 < n) derecha += 1;
-                    else if (bandera_nulo) derecha = 0;
-
-                    if (hormigas.find({x, derecha}) != hormigas.end())
-                        if (hormigas[{x, derecha}].tipo == 0 && hormigas[{x, derecha}].direccion == 4){
-                            nacimiento[{x, y}] = i->second;
-                            nacimiento[{x, y}].edad = 0;
-                            nacimiento[{x, y}].tipo = 3;
-                        }
-                }
-
-                else if (i->second.direccion == 3){
-                    int abajo = i->first.second;
-                    if (abajo + 1 < n) abajo += 1;
-                    else if (bandera_nulo) abajo = 0;
-
-                    if (hormigas.find({x, abajo}) != hormigas.end())
-                        if (hormigas[{x, abajo}].tipo == 0 && hormigas[{x, abajo}].direccion == 1){
-                            nacimiento[{x, y}] = i->second;
-                            nacimiento[{x, y}].edad = 0;
-                            nacimiento[{x, y}].tipo = 3;
-                        }
-                }
-
-                else if (i->second.direccion == 4){
-                    int izquierda = i->first.first;
-                    if (izquierda - 1 >= 0) izquierda -= 1;
-                    else if (bandera_nulo) izquierda = n - 1;
-
-                    if (hormigas.find({x, izquierda}) != hormigas.end())
-                        if (hormigas[{x, izquierda}].tipo == 0 && hormigas[{x, izquierda}].direccion == 2){
-                            nacimiento[{x, y}] = i->second;
-                            nacimiento[{x, y}].edad = 0;
-                            nacimiento[{x, y}].tipo = 3;
-                        }
-                }
-            }
-
-            if (i->second.tipo == 0){
-
-
-            }
-
-
-            int direccion = i->second.direccion;
-
-            // Checamos la condicion y comprobar si es que alguna nueva hormiga nace
-
-            if (matrix[y][x]){
-                direccion = (direccion + 1) % 5;
-                direccion += (direccion == 0 ? 1 : 0);
-            }
-            else{
-                direccion -= 1;
-                direccion = (direccion == 0 ? 4 : direccion); 
-            }
-
-            if (matrix[y][x] == false){
-                matrix[y][x] = true;
-                celdas_vivas.insert({x, y});
-            }
+        // Comprobamos si es la hormiga existe en la iteracion actual
+        if (borrar.count({x,y}) == 0){
+            // En caso de que la hormiga cumpla con la condicion maxima de iteraciones, se quitara de la simulacion
+            if (i->second.edad == 80) borrar.insert({x, y});
             else {
-                matrix[y][x] = false;
-                celdas_vivas.erase({x, y});
-            }
+                i->second.edad += 1;
 
-            pair <int,int> coordenadas = checkMovement(direccion, x , y);
+                int direccion = i->second.direccion;
 
-            if (coordenadas.first != -1){
-                auto actual = hormigas[{x, y}];
-                actual.direccion = direccion;
-                hormigas.erase(hormigas.find({x,y}));
+                // Checamos la condicion y comprobar si es que alguna nueva hormiga nace
 
-                hormigas[{coordenadas.first, coordenadas.second}] = actual;
-            }
+                if (matrix[y][x]){
+                    direccion = (direccion + 1) % 5;
+                    direccion += (direccion == 0 ? 1 : 0);
+                }
+                else{
+                    direccion -= 1;
+                    direccion = (direccion == 0 ? 4 : direccion); 
+                }
 
-            else {
-                // Ponemos dentro del arreglo de las nuevas direcciones la nuevas direcciones
-                // para poder seleccionarla de manera aleatoria, exluyo la direccion de la que vengo
-                // y la que no fue posible en un inicio
-                vector <int> direcciones = {direccion + 1, direccion + 2};
+                if (matrix[y][x] == false){
+                    matrix[y][x] = true;
+                    celdas_vivas.insert({x, y});
+                }
+                else {
+                    matrix[y][x] = false;
+                    celdas_vivas.erase({x, y});
+                }
 
-                // Seleccionamos la nueva direccion
-                int nueva_direaccion = getNewPosition({2, 3});
-                // Checamos si esa nueva posicion es valida
-                coordenadas = checkMovement(nueva_direaccion, x , y);
+                pair <int,int> coordenadas = checkMovement(direccion, x , y);
 
-                // En caso de que sea posible agregamos esa nueva posicion
+                // Checamos la posicion despues del giro y si es posible se agrega a esa posicion
                 if (coordenadas.first != -1){
                     auto actual = hormigas[{x, y}];
-                    actual.direccion = nueva_direaccion;
-                    hormigas.erase(hormigas.find({x,y}));
-                    hormigas[{coordenadas.first, coordenadas.second}] = actual;
+                    actual.direccion = direccion;
+
+                    borrar.insert({x, y});
+
+                    nacimiento[{coordenadas.first, coordenadas.second}] = actual;
+                }
+                else {
+                    // En caso de que no nos podamos mover despues del giro, eso quiere decir que existe una hormiga en ese lugar
+                    // por lo que aplicamos las condiciones de nacimiento y de muerte de hormigas
+                    
+                    // Comprobamos si la condicion en donde dos reinas se encuentren
+                    if (i->second.tipo == 0) 
+                        checkFront(i->second.direccion, x, y, false);
+
+                    else{
+                        // En caso de que la hormiga actual sea reproductora queremos comprobar si se da la condicion de nacimiento
+                        if (i->second.tipo == 2){
+                            auto hormiga_nacimiento = checkFront(i->second.direccion, x, y, true);
+                            // En caso de que se cumpla la condicion de nacimiento, agregamos la hormiga al arreglo de nacimiento de hormigas
+                            if (hormiga_nacimiento.first.first >= 0) {
+                                nacimiento[hormiga_nacimiento.first] = hormiga_nacimiento.second;
+                            }
+                        }
+
+                        // Ponemos dentro del arreglo de las nuevas direcciones la nuevas direcciones
+                        // para poder seleccionarla de manera aleatoria, exluyo la direccion de la que vengo
+                        // y la que no fue posible en un inicio
+                        vector <int> direcciones = {direccion + 1, direccion + 2};
+
+                        // Seleccionamos la nueva direccion
+                        int nueva_direccion = getNewPosition(direcciones);
+                        // Checamos si esa nueva posicion es valida
+                        coordenadas = checkMovement(nueva_direccion, x , y);
+
+
+                        // En caso de que sea posible agregamos esa nueva posicion
+                        if (coordenadas.first != -1){
+                            auto actual = hormigas[{x, y}];
+                            actual.direccion = nueva_direccion;
+
+                            borrar.insert({x, y});
+
+                            nacimiento[{coordenadas.first, coordenadas.second}] = actual;
+                        }
+                    }
                 }
             }
-
         }
+
+        i++;
+
     }
 
     // Agregamos todas las hormigas que salieron de la condicion de nacimiento
+    for (auto i : borrar)
+        hormigas.erase(hormigas.find({i.first, i.second}));
+
     for (auto i : nacimiento)
         hormigas[{i.first.first, i.first.second}] = i.second;
+
+
+    borrar.clear();
 
     return;
 }
