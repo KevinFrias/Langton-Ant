@@ -2,7 +2,7 @@
 #include <SFML/System.hpp>
 #include <SFML/Window.hpp>
 #include <bits/stdc++.h>
-// #include <gtk/gtk.h>
+#include <gtk/gtk.h>
 #define PB push_back
 using namespace std;
 
@@ -22,7 +22,7 @@ struct Ant {
 vector <int> densidad_hormigas(4, 0);
 
 // Variable de ayuda para el control de la distribucion de hormigas dentro del tablero
-int distribucion_n = 100;
+int distribucion_n = 50;
 
 // Matrices necesarias para los diferentes estados de la simulacion
 // Son enteros ya que guardaremos el tipo de hormiga en cada celda
@@ -73,7 +73,7 @@ int total_celdas_vivas = 0;
 int total_celdas_vivas_entriopia = 0;
 
 // varibles necesarias para el control del zoom
-int index_zoom = 15;
+int index_zoom = 13;
 vector <int> zoom = {/*1, 2,*/ 4, 5, 7, 10, 14, 20, 25, 28, 35, 50, 70, 100, 140, 175, 350, 700};
 
 // Definimos banderas que nos ayudan a mantener el control de acciones especificas del programa
@@ -297,6 +297,37 @@ void handlerArchivo (string action){
 
 // Como voy a pintar la simulacion? -> list <list> cells;
 
+
+
+
+
+void updateConfiguration(){
+    // Creamos la ventana donde manejaremos el cambio de color de las celdas
+    // x y
+    sf::RenderWindow windowColor(sf::VideoMode(500, 600), "Configuracion");
+
+    while (windowColor.isOpen()){
+        sf::Event event;
+        while (windowColor.pollEvent(event)){
+            if (event.type == sf::Event::Closed) windowColor.close();
+
+            // En caso de que el evento sea en donde se presiona el boton de el mouse, checamos que sea el izquierdo
+            if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left){
+                // Obtenemos la posicion del mouse
+                sf::Vector2i mousePos = sf::Mouse::getPosition(windowColor);
+                sf::Vector2f mousePosF(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y));
+
+            }
+        }
+
+        windowColor.clear(sf::Color(51,65,78));
+
+        // Draw the preview rectangle and the palette to the window
+
+        windowColor.display();
+    }
+
+}
 
 void updateGraphics(){
 
@@ -826,6 +857,9 @@ void actionHandler(string action){
         total_celdas_vivas = 0;
         total_iteraciones = 0;
 
+        cambios_matrix.clear();
+        matrix.resize(n, vector<bool> (n, false));
+
         celdas_vivas.clear();
         hormigas_temporal.clear();
         hormigas.clear();
@@ -846,8 +880,8 @@ void actionHandler(string action){
     if (action == "Inicializar Juego"){
         int index = 3;
 
-        while(index--){
-            int cantidad_hormigas_tipo = (distribucion_n * distribucion_n) / densidad_hormigas[0];
+        while(index>= 0){
+            int cantidad_hormigas_tipo = (distribucion_n * distribucion_n * densidad_hormigas[index]) / 100;
             while(cantidad_hormigas_tipo--){
                 int x, y;
 
@@ -864,17 +898,172 @@ void actionHandler(string action){
 
                 hormigas[{x,y}] = hormiga_actual;
             }
+
+            index--;
         }
     }
 
     return;
 }
 
+void abrirArchivo(GtkDialog *dialog, gint response_id, gpointer user_data) {
+    // Si la respuesat fue "Aceptar", abrimos el archivo
+    if (response_id == GTK_RESPONSE_ACCEPT) {
+        string ruta_archivo = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+
+        ifstream file(ruta_archivo);
+
+        if (file.is_open()) {
+            actionHandler("Limpiar Juego");
+            string line;
+            getline(file, line);
+
+            int nuevo_valor_n = stoi(line);
+
+            bool bandera = true;
+            // Leemos todo el contenido del archivo de texto
+            while (getline(file, line)) {
+                int contador = 0, x, y;
+                string temp = "";
+                Ant actual;
+
+                if (line == "---") bandera = false;
+                else {
+                    for (int i = 0; i < line.size(); i++){
+                        if (line[i] == ' '){
+                            int valor = stoi(temp);
+                            if (contador == 0) x = valor;
+                            else if (contador == 1) y = valor;
+                            else if (contador == 2) actual.edad = valor;
+                            else if (contador == 3) actual.direccion = valor;
+                            else actual.tipo = valor;
+                            contador++;
+                            temp = "";
+                        }
+                        else temp += line[i];
+                    }
+                }
+
+                // Si la bandera es positiva, significa que sabemos los valores de las hormigas
+                if (bandera) hormigas[{x,y}] = actual;
+                else celdas_vivas.insert({x, y});
+
+            }
+
+
+
+            // Cerramos el proceso del archivo
+            file.close();
+            
+          
+        }
+    }
+
+    // Una vez terminado el proceso, se puede quitar la ventana para la seleccion del archivo
+    gtk_widget_destroy(GTK_WIDGET(dialog));
+
+    // Terminamos el loop principal para el manejo de archivos
+    gtk_main_quit(); 
+    return;
+}
+
+void guardarArchivo(GtkDialog *dialog, gint response_id, gpointer user_data) {
+
+    if (response_id == GTK_RESPONSE_ACCEPT) {
+        // Obtenemos la ruta del archivo seleccionado
+        string ruta_archivo = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+
+        string numero = to_string(n);
+
+        // Abrimos el archivo para posteriormente escribir en el
+        ofstream file(ruta_archivo);
+        if (!file.is_open()) {
+            // En caso de que se tenga un error al momento de querer crear el archivo, cerramos la ventana para el manejor del archivo y 
+            // acabamos el proceso
+            cerr << "Failed to open file for writing: " << ruta_archivo << endl;
+            gtk_widget_destroy(GTK_WIDGET(dialog));
+            gtk_main_quit();
+            return;
+        }
+
+        // Escribimos el numero de la dimension de la matrix cuadrada
+        file << numero << endl;
+
+        // Escribimos las posiciones de las hormigas junto con los parametros de cada hormiga
+        for (auto i : hormigas){
+            string hormiga_actual = to_string(i.first.first) + " " + to_string(i.first.second) + " ";
+            hormiga_actual += to_string(i.second.edad) + " " + to_string(i.second.direccion) + " " + to_string(i.second.tipo) + " ";
+            file << hormiga_actual << endl;
+        }
+
+        // Escribimos dentro del archivo un separador para saber cuando han acabado las hormigas
+        file << "---" << endl;
+
+        // Despues escribimos las posicones de las celdas vivas dentro de la matrix
+        for (auto i : celdas_vivas){
+            string coordenadas = to_string(i.first) + " " + to_string(i.second) + " ";
+            file << coordenadas << endl;
+        }
+
+
+        // Cerramos el proceso del archivo
+        file.close();
+    }
+
+    // Una vez terminado el proceso, se puede quitar la ventana para la seleccion del archivo
+    gtk_widget_destroy(GTK_WIDGET(dialog));
+
+    // Terminamos el loop principal para el manejo de archivos
+    gtk_main_quit();
+    return;
+}
+
+void archivoHandler(string action){
+
+    if (action == "Abrir"){
+        // Inicializamos el preoceso para las ventas 
+        gtk_init(NULL, NULL);
+        // Creamos la ventana para la seleccion del archivo
+        GtkWidget *dialog = gtk_file_chooser_dialog_new("Open File", NULL, GTK_FILE_CHOOSER_ACTION_OPEN, "_Cancel", GTK_RESPONSE_CANCEL, "_Open", GTK_RESPONSE_ACCEPT, NULL);
+
+        // Agregamos un filtro al momento de mostrar los archivos de manera que solamente se muestren los que tengan extension ".txt"
+        GtkFileFilter *filter = gtk_file_filter_new();
+        gtk_file_filter_add_pattern(filter, "*.txt");
+        gtk_file_filter_set_name(filter, "Text files");
+        gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filter);
+
+        // Mostramos la ventana para poder guardar los archivos
+        gtk_widget_show_all(dialog);
+        // Conectamos la respuesta del usuario con una function
+        g_signal_connect(dialog, "response", G_CALLBACK(abrirArchivo), NULL);
+
+        // Iniciamos el loop principal para el manejo de archivos
+        gtk_main();
+
+    }
+    else{
+        // Inicializamos el preoceso para las ventas 
+        gtk_init(NULL, NULL);
+
+        // Creamos la ventana para guardar el archivo
+        GtkWidget *dialog = gtk_file_chooser_dialog_new("Save As", NULL, GTK_FILE_CHOOSER_ACTION_SAVE, "_Cancel", GTK_RESPONSE_CANCEL, "_Save", GTK_RESPONSE_ACCEPT, NULL);
+        // Mostramos la ventana para poder guardar los archivos
+        gtk_widget_show_all(dialog);
+        // Conectamos la respuesta del usuario con una function
+        g_signal_connect(dialog, "response", G_CALLBACK(guardarArchivo), NULL);
+
+        // Iniciamos el loop principal para el manejo de archivos
+        gtk_main();
+    }
+    
+    return;
+}
 
 int main() {
 
     // x, y
 
+    /*
     celdas_vivas.insert({3, 0});
     celdas_vivas.insert({5, 0});
     celdas_vivas.insert({7, 0});
@@ -889,6 +1078,7 @@ int main() {
 
 
     index_zoom -= 3;
+    */
 
     color_hormigas[0] = {255,99,71};
     color_hormigas[1] = {50,205,50};
@@ -945,11 +1135,10 @@ int main() {
         createRectangle(50, 40, 20, 425, "<", 24, 17, 5),
         createRectangle(50, 40, 140, 425, ">", 24, 17, 5),
 
-        createRectangle(180, 60, 20, 620, "Seleccionar Color", 17, 20, 17),
-        createRectangle(180, 60, 20, 710, "Definir regla B/S", 17, 22, 18),
+        createRectangle(180, 60, 20, 710, "Configuracion", 18, 30, 18),
 
-        createRectangle(80, 50, 20, 800, "Guardar", 14, 15, 17),
-        createRectangle(80, 50, 110, 800, "Abrir", 14, 25, 17),
+        createRectangle(81, 50, 20, 800, "Guardar", 14, 15, 17),
+        createRectangle(81, 50, 111, 800, "Abrir", 14, 25, 17),
 
         createRectangle(180, 50, 1450, 810, "Mostrar Graficas", 17, 18, 14),
 
@@ -993,8 +1182,16 @@ int main() {
                     if (buttons[i].first.getGlobalBounds().contains(mousePosF)) {
                             // Si el boton fue presionado, lo mandamos a nuestra funcion de actionHandler
                             string action = buttons[i].second.getString();
+                            if (action == "Configuracion" )
+                                updateConfiguration();
+                            
+                            else if (action == "Guardar" || action == "Abrir"){
+                                outerWindow.setVisible(false);
+                                archivoHandler(action);
+                                outerWindow.setVisible(true);
+                            }
 
-                            // Inicializar juego
+                            else actionHandler(action);
 
                             // Seleccionar color
 
@@ -1002,7 +1199,6 @@ int main() {
 
                             // Mostrar graficas
 
-                            actionHandler(action);
                     }
                 }
 
@@ -1039,11 +1235,10 @@ int main() {
 
         // Sabiendo de los indices de los botones para los diferentes tipos de hormiga, mostramos de manera
         // mas clara que hormiga es seleccionada al momento de ponerla dentro de la simulacion
-        for (int i = 18; i <= 21; i++)
+        for (int i = buttons.size() - 4; i < buttons.size(); i++)
             buttons[i].first.setFillColor(sf::Color(200,200,200,200));
 
-        buttons[18 + hormiga_tipo_tablero].first.setFillColor(sf::Color(96, 96, 96));
-    
+        buttons[buttons.size() - 4 + hormiga_tipo_tablero].first.setFillColor(sf::Color(96, 96, 96));
 
 
         updateGraphics();
