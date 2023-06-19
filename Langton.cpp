@@ -53,7 +53,7 @@ int hormiga_tipo_tablero = 0;
 
 
 // Arreglos para manetener un control de todos los valores que se usan en las graficas
-vector <int> valores_grafica_normal;
+vector <int> valores_grafica_densidad;
 vector <int> valores_grafica_entriopia;
 unordered_map <int,int> entropy;
 
@@ -296,9 +296,6 @@ void handlerArchivo (string action){
 // Donde van a estar las hormigas? -> map <pair<int,int> ant>
 
 // Como voy a pintar la simulacion? -> list <list> cells;
-
-
-
 
 
 void updateConfiguration(){
@@ -823,6 +820,8 @@ void actionHandler(string action){
 
         total_iteraciones++;
         total_celdas_vivas = celdas_vivas.size();
+
+        valores_grafica_densidad.PB(total_celdas_vivas);
     }
 
     // Detenemos la evolución automatica si es el caso
@@ -866,7 +865,7 @@ void actionHandler(string action){
         borrar.clear();
         nacimiento_condicion.clear();
 
-        valores_grafica_normal.clear();
+        valores_grafica_densidad.clear();
         valores_grafica_entriopia.clear();
         entropy.clear();
 
@@ -1059,6 +1058,28 @@ void archivoHandler(string action){
     return;
 }
 
+
+void showGraphs(){
+
+    // Cremos el archivo para guardar los datos de la densidad poblacional
+    ofstream file("normal.txt");
+
+    // Ingresamos los datos al archivo
+    for (int i = 0; i < valores_grafica_densidad.size(); i++)
+        file << valores_grafica_densidad[i] << endl;
+
+    // Cerramos el archivo
+    file.close();
+
+
+    // Ejecutamos el programa para la visualización de las gráficas y limpiamos los archivos creados
+    int a = system("python3 graphs.py");
+    int b = system("rm normal.txt");
+
+    return;    
+}
+
+
 int main() {
 
     // x, y
@@ -1190,15 +1211,16 @@ int main() {
                                 archivoHandler(action);
                                 outerWindow.setVisible(true);
                             }
+                            else if (action == "Mostrar Graficas"){
+                                outerWindow.setVisible(false);
+                                showGraphs();
+                                outerWindow.setVisible(true);
+                            }
 
                             else actionHandler(action);
 
                             // Seleccionar color
-
-                            // Guardar abrir
-
                             // Mostrar graficas
-
                     }
                 }
 

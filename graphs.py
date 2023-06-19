@@ -9,19 +9,8 @@ def create_graph(ax, canvas, option):
     
     # Declaración de variables necesarias para poder controlar el nombre de archivo
     # y etiqueta de la grafica
-    label_Y = ""
-    nombre_archivo = ""
-
-    # Asignamos el valor correspondiente dependiendo de la gráfica a visualizar
-    if option == "Population" :
-        label_Y = "# Population"
-    else :
-        label_Y = "# Entropy"
-
-    if option == "Entropy" :
-        nombre_archivo = "entriopia.txt"
-    else :
-        nombre_archivo = "normal.txt"
+    label_Y = "# Population"
+    nombre_archivo = "normal.txt"
 
     # Creamos las etiquetas en X y Y para las graficas
     ax.set_xlabel("Iteration")
@@ -83,7 +72,7 @@ def main():
     var.set("Population")
 
     # Creamos un menu desplegable
-    option_menu = tk.OptionMenu(root, var, "Population", "Population Log10", "Entropy", command=lambda choice: create_graph(ax, canvas, choice))
+    option_menu = tk.OptionMenu(root, var, "Population", "Population Log10", command=lambda choice: create_graph(ax, canvas, choice))
     option_menu.config(width=15, heigh=3, font=("Arial", 14))
     option_menu.pack(pady=(20,0))
 
