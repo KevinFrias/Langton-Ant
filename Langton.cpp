@@ -59,6 +59,7 @@ unordered_map <int,int> entropy;
 
 // Definimos los valores RGB del fondo de la pantalla de la simulacion
 int color_fondo[] = {0,0,0};
+int color_celdas[] = {255,255,255};
 
 vector <vector <int> > color_hormigas(4, vector <int> (3));
 
@@ -80,8 +81,8 @@ vector <int> zoom = {/*1,*/ 2, 4, 5, 7, 10, 14, 20, 25, 28, 35, 50, 70, 100, 140
 bool bandera_automatico = false;
 bool bandera_nulo = true;
 
-    // Definimos la fuente que vamos a ocupar dentro de la ventana
-    sf::Font font;
+// Definimos la fuente que vamos a ocupar dentro de la ventana
+sf::Font font;
 sf::RenderTexture inner;
 
 // Size del margen en pixeles
@@ -107,84 +108,179 @@ pair<sf::RectangleShape, sf::Text> createRectangle(int szBtnX, int szBtny, int p
 }
 
 void updateColors(){
-    /*
-    // Creamos la ventana donde manejaremos el cambio de color de las celdas
-    sf::RenderWindow windowColor(sf::VideoMode(660, 250), "Cambio de color");
+    sf::RenderWindow window(sf::VideoMode(860, 450), "Cambio de 12");
 
-    auto buttonOk = createRectangle(100, 50, 280, 170, "OK", 24, 32, 10);
+    auto botonOK = createRectangle(100, 60, 380, 370, "OK", 20, 30, 16);
 
-    sf::RectangleShape alive(sf::Vector2f(200, 80));
-    sf::RectangleShape death(sf::Vector2f(200, 80));
+    // Creamos toda la paleta de colores
+    vector<sf::RectangleShape> palette(64);
 
-    alive.setFillColor(sf::Color(color_vivo[0], color_vivo[1], color_vivo[2]));
-    death.setFillColor(sf::Color(color_muerto[0], color_muerto[1], color_muerto[2]));
+    for (int i = 0; i < 64; i++){
+        sf::RectangleShape tile(sf::Vector2f(43, 43));
+        int index_x = (i % 16) + 1;
+        int index_y = (i / 16) + 1;
 
-    alive.setPosition(65, 50);
-    death.setPosition(395, 50);
+        int x = (10 * index_x) + (43 * (index_x - 1));
+        int y = (15 * index_y) + (43 * (index_y - 1));
 
-    sf::Text text1("Celdas Vivas", font, 24);
-    text1.setFillColor(sf::Color::Black);
-    text1.setPosition(90, 15);
+        tile.setPosition(x, y);
 
-    sf::Text text2("Celdas Muertas", font, 24);
-    text2.setFillColor(sf::Color::Black);
-    text2.setPosition(405, 15);
+        palette[i] = tile;
+    }
+
+    vector <int> valores = {0, 96, 182, 255};
+
+    for (int i = 0, index = 0; i < 4; i++){
+        for (int j = 0; j < 4; j++){
+            for (int k = 0; k < 4; k++, index++){
+                palette[index].setFillColor(sf::Color(valores[i], valores[j], valores[k]));
+            }
+        }
+    }
+
+    vector<sf::RectangleShape> palette_clean(palette.begin(), palette.end());
+
+    vector <string> nombre_botones = {
+        "Reina",
+        "Trabajadora",
+        "Reprodcutora",
+        "Soldado",
+        "Celda viva",
+        "Celda Muerta"
+    };
+
+    vector <pair< sf::RectangleShape, sf::Text>>  botones(6);
+    
+    for (int i = 0; i < 6; i++){
+        int x = (15 * (i + 1)) + (126 * i), y = 280;
+        int distancia = 5;
+        if (i == 0) distancia = 35;
+        else if (i == 1) distancia = 10;
+        else if (i == 3) distancia = 25;
+        else if (i == 4) distancia = 18;
+
+        botones[i] = createRectangle(126, 40, x, y, nombre_botones[i], 18, distancia, 10);
+    }
 
 
+    int seleccion = 0;
+    int seleccion_color = 32;
 
-    while (windowColor.isOpen()){
+    // Del color seleccionado le agregamos una ayuda visual para mostrar en que posicion se encuentra
+    palette[seleccion_color].setSize(palette[seleccion_color].getSize() - sf::Vector2f(margin * 2.f, margin * 2.f));
+    palette[seleccion_color].setPosition(palette[seleccion_color].getPosition() + sf::Vector2f(margin, margin));
+
+    while (window.isOpen()) {
         sf::Event event;
-        while (windowColor.pollEvent(event)){
-            if (event.type == sf::Event::Closed) windowColor.close();
+        window.clear(sf::Color(51,65,78));
+
+        while (window.pollEvent(event)) {
+            if (event.type == sf::Event::Closed) window.close();
 
             // En caso de que el evento sea en donde se presiona el boton de el mouse, checamos que sea el izquierdo
             if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left){
                 // Obtenemos la posicion del mouse
-                sf::Vector2i mousePos = sf::Mouse::getPosition(windowColor);
+                sf::Vector2i mousePos = sf::Mouse::getPosition(window);
                 sf::Vector2f mousePosF(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y));
 
-                if (buttonOk.first.getGlobalBounds().contains(mousePosF)) windowColor.close();
-                if (alive.getGlobalBounds().contains(mousePosF)){
-                    // Cambiamos el color vivo
-                    windowColor.setActive(false);
-                    selectColor(1);
-                    alive.setFillColor(sf::Color(color_vivo[0], color_vivo[1], color_vivo[2]));
-                    windowColor.setActive(true);
-
+                if (botonOK.first.getGlobalBounds().contains(mousePosF)){
+                    // Finalmente cerramos la ventana
+                    window.close();
                 }
 
-                if (death.getGlobalBounds().contains(mousePosF)){
-                    // Cambiamos el color vivo
-                    windowColor.setActive(false);
-                    selectColor(2);
-                    death.setFillColor(sf::Color(color_muerto[0], color_muerto[1], color_muerto[2]));
-                    windowColor.setActive(true);
+                // Recoremos el arreglo de botones para saber la seleccion del elemento a cambiar color
+                for (int i = 0; i < botones.size(); i++){
+                    if (botones[i].first.getGlobalBounds().contains(mousePosF)){
+                        seleccion = i;
+                        if (i == 0) seleccion_color = 32;
+                        else if (i == 1) seleccion_color = 39;
+                        else if (i == 2) seleccion_color = 11;
+                        else if (i == 3) seleccion_color = 12;
+                        else if (i == 4) seleccion_color = 63;
+                        else if (i == 5) seleccion_color = 0;
+                    }
+                }
+
+                 // Hacemos un recorrido por todos los colores disponibles y checamos si alguno de ellos fue presionado
+                for (int i = 0; i < palette.size(); ++i){
+                    if (palette[i].getGlobalBounds().contains(mousePosF)) seleccion_color = i;
+                    palette = palette_clean;
+
+                    // Del color seleccionado le agregamos una ayuda visual para mostrar en que posicion se encuentra
+                    palette[seleccion_color].setSize(palette[seleccion_color].getSize() - sf::Vector2f(margin * 2.f, margin * 2.f));
+                    palette[seleccion_color].setPosition(palette[seleccion_color].getPosition() + sf::Vector2f(margin, margin));
+
+                    // Aplicamos los cambios al color dependiendo de que boton fue seleccionado
+                    int r = static_cast<int> (palette[seleccion_color].getFillColor().r);
+                    int g = static_cast<int> (palette[seleccion_color].getFillColor().g);
+                    int b = static_cast<int> (palette[seleccion_color].getFillColor().b);
+
+                    if (seleccion < 4){
+                        color_hormigas[seleccion][0] = r;
+                        color_hormigas[seleccion][1] = g;
+                        color_hormigas[seleccion][2] = b;
+
+                    }
+                    else{
+                        if (seleccion == 4){
+                            color_celdas[0] = r;
+                            color_celdas[1] = g;
+                            color_celdas[2] = b;
+                        }
+                        else{
+                            color_fondo[0] = r;
+                            color_fondo[1] = g;
+                            color_fondo[2] = b;
+                        }
+                    }
+
                 }
 
             }
+        
         }
 
-        windowColor.clear(sf::Color(247,155,131));
+        for (auto &tile : palette){
+            int r, g, b;
+            bool bandera_color = true;
 
-        // Draw the preview rectangle and the palette to the window
-        windowColor.draw(alive);
-        windowColor.draw(death);
+            // Quitamos todos los valores que son usados por las celdas
+            if (seleccion != 4)
+                if (sf::Color(color_celdas[0], color_celdas[1], color_celdas[2])  == tile.getFillColor())  bandera_color = false;
 
-        windowColor.draw(text1);
-        windowColor.draw(text2);
+            if (seleccion != 5)
+                if (sf::Color(color_fondo[0], color_fondo[1], color_fondo[2])  == tile.getFillColor())  bandera_color = false;
 
-        windowColor.draw(buttonOk.first);
-        windowColor.draw(buttonOk.second);
+            for (int i = 0; i < color_hormigas.size(); i++){
+                if (i != seleccion)
+                    if (sf::Color(color_hormigas[i][0], color_hormigas[i][1], color_hormigas[i][2])  == tile.getFillColor()) bandera_color = false;
+            }
 
-        windowColor.display();
+            // No debemos mostrar el tile del color ya seleccionado
+            if (bandera_color) window.draw(tile);
+        }
+
+        for (int i = 0; i < botones.size(); i++){
+            if (seleccion == i) botones[i].first.setFillColor(sf::Color(96, 96, 96));
+            else botones[i].first.setFillColor(sf::Color(200, 200, 200));
+        }
+
+
+        for (auto &boton : botones){
+            window.draw(boton.first);
+            window.draw(boton.second);
+        }
+
+        // Mostramos en pantalla el boton de OK
+        window.draw(botonOK.first);
+        window.draw(botonOK.second);
+
+
+        // Mostramos todos los valores anteriores
+        window.display();
     }
-*/
    return;
 }
-
-// Donde van a estar las hormigas? -> map <pair<int,int> ant>
-
-// Como voy a pintar la simulacion? -> list <list> cells;
 
 void changeValues(){
 
@@ -348,7 +444,7 @@ void updateConfiguration(){
                         }
                         else{
                             windowConfig.setVisible(false);
-                            cout << "Cambio de colores en las hormigas" << endl;
+                            updateColors();
                             windowConfig.setVisible(true);
                         }
                     }
@@ -401,7 +497,8 @@ void updateGraphics(){
                 int y = i.second - index_visual_y;
 
                 celda.setPosition(x * sizeCelda_X, y * sizeCelda_Y);
-                celda.setFillColor(sf::Color(255, 255, 255));
+
+                celda.setFillColor(sf::Color(color_celdas[0], color_celdas[1], color_celdas[2]));
                 inner.draw(celda);
             }
         }
@@ -1146,11 +1243,10 @@ int main() {
 
     // x, y
 
-    color_hormigas[0] = {255,99,71};
-    color_hormigas[1] = {50,205,50};
-    color_hormigas[2] = {0,102,204};
-    color_hormigas[3] = {221,160,221};
-
+    color_hormigas[0] = {182,0,0};
+    color_hormigas[1] = {182,96,255};
+    color_hormigas[2] = {0,182,255};
+    color_hormigas[3] = {0,255,0};
     densidad_hormigas = {1, 55, 9, 35};
 
 
@@ -1260,7 +1356,6 @@ int main() {
                                 showGraphs();
                                 outerWindow.setVisible(true);
                             }
-
                             else actionHandler(action);
 
                             // Seleccionar color
