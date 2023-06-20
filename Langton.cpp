@@ -19,10 +19,10 @@ struct Ant {
 };
 
 // La densidad de hormigas la guardaremos dentro de un arreglo para tener un control general de este
-vector <int> densidad_hormigas(4, 0);
+vector <int> densidad_hormigas(4);
 
 // Variable de ayuda para el control de la distribucion de hormigas dentro del tablero
-int distribucion_n = 50;
+int distribucion_n = 200;
 
 // Matrices necesarias para los diferentes estados de la simulacion
 // Son enteros ya que guardaremos el tipo de hormiga en cada celda
@@ -73,15 +73,15 @@ int total_celdas_vivas = 0;
 int total_celdas_vivas_entriopia = 0;
 
 // varibles necesarias para el control del zoom
-int index_zoom = 13;
-vector <int> zoom = {/*1, 2,*/ 4, 5, 7, 10, 14, 20, 25, 28, 35, 50, 70, 100, 140, 175, 350, 700};
+int index_zoom = 10;
+vector <int> zoom = {/*1,*/ 2, 4, 5, 7, 10, 14, 20, 25, 28, 35, 50, 70, 100, 140, 175, 350, 700};
 
 // Definimos banderas que nos ayudan a mantener el control de acciones especificas del programa
 bool bandera_automatico = false;
 bool bandera_nulo = true;
 
-// Definimos la fuente que vamos a ocupar dentro de la ventana
-sf::Font font;
+    // Definimos la fuente que vamos a ocupar dentro de la ventana
+    sf::Font font;
 sf::RenderTexture inner;
 
 // Size del margen en pixeles
@@ -182,146 +182,197 @@ void updateColors(){
    return;
 }
 
-/*
-void abrirArchivo(GtkDialog *dialog, gint response_id, gpointer user_data) {
-    // Si la respuesat fue "Aceptar", abrimos el archivo
-    if (response_id == GTK_RESPONSE_ACCEPT) {
-        string ruta_archivo = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
-
-        ifstream file(ruta_archivo);
-
-        if (file.is_open()) {
-            // Leemos todo el contenido del archivo de texto
-            string file_contents((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
-            valores_archivo = file_contents;
-
-            // Cerramos el proceso del archivo
-            file.close();
-            
-          
-        }
-    }
-
-    // Una vez terminado el proceso, se puede quitar la ventana para la seleccion del archivo
-    gtk_widget_destroy(GTK_WIDGET(dialog));
-
-    // Terminamos el loop principal para el manejo de archivos
-    gtk_main_quit(); 
-    return;
-}
-
-void guardarArchivo(GtkDialog *dialog, gint response_id, gpointer user_data) {
-    if (response_id == GTK_RESPONSE_ACCEPT) {
-        // Obtenemos la ruta del archivo seleccionado
-        string ruta_archivo = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
-
-        string numero = to_string(n);
-        string contenido_archivo = "";
-
-        for (int i = 0; i < n; i++){
-            for (int j = 0; j < n; j++){
-                contenido_archivo += (matrix[i][j] ? "1" : "0");
-            }
-        }
-
-         // Open the file for writing
-        ofstream file(ruta_archivo);
-        if (!file.is_open()) {
-            // En caso de que se tenga un error al momento de querer crear el archivo, cerramos la ventana para el manejor del archivo y 
-            // acabamos el proceso
-            cerr << "Failed to open file for writing: " << ruta_archivo << endl;
-            gtk_widget_destroy(GTK_WIDGET(dialog));
-            gtk_main_quit();
-            return;
-        }
-
-        file << numero << endl;
-        // Escribimos los datos de la matrix a el archivo
-        file << contenido_archivo;
-        // Cerramos el proceso del archivo
-        file.close();
-    }
-
-    // Una vez terminado el proceso, se puede quitar la ventana para la seleccion del archivo
-    gtk_widget_destroy(GTK_WIDGET(dialog));
-
-    // Terminamos el loop principal para el manejo de archivos
-    gtk_main_quit();
-    return;
-}
-
-void handlerArchivo (string action){
-
-    if (action == "Abrir"){
-        // Inicializamos el preoceso para las ventas 
-        gtk_init(NULL, NULL);
-        // Creamos la ventana para la seleccion del archivo
-        GtkWidget *dialog = gtk_file_chooser_dialog_new("Open File", NULL, GTK_FILE_CHOOSER_ACTION_OPEN, "_Cancel", GTK_RESPONSE_CANCEL, "_Open", GTK_RESPONSE_ACCEPT, NULL);
-
-        // Agregamos un filtro al momento de mostrar los archivos de manera que solamente se muestren los que tengan extension ".txt"
-        GtkFileFilter *filter = gtk_file_filter_new();
-        gtk_file_filter_add_pattern(filter, "*.txt");
-        gtk_file_filter_set_name(filter, "Text files");
-        gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filter);
-
-        // Mostramos la ventana para poder guardar los archivos
-        gtk_widget_show_all(dialog);
-        // Conectamos la respuesta del usuario con una function
-        g_signal_connect(dialog, "response", G_CALLBACK(abrirArchivo), NULL);
-
-        // Iniciamos el loop principal para el manejo de archivos
-        gtk_main();
-
-    }
-    else{
-        // Inicializamos el preoceso para las ventas 
-        gtk_init(NULL, NULL);
-
-        // Creamos la ventana para guardar el archivo
-        GtkWidget *dialog = gtk_file_chooser_dialog_new("Save As", NULL, GTK_FILE_CHOOSER_ACTION_SAVE, "_Cancel", GTK_RESPONSE_CANCEL, "_Save", GTK_RESPONSE_ACCEPT, NULL);
-        // Mostramos la ventana para poder guardar los archivos
-        gtk_widget_show_all(dialog);
-        // Conectamos la respuesta del usuario con una function
-        g_signal_connect(dialog, "response", G_CALLBACK(guardarArchivo), NULL);
-
-        // Iniciamos el loop principal para el manejo de archivos
-        gtk_main();
-    }
-    
-
-    return;
-}
-*/
-
 // Donde van a estar las hormigas? -> map <pair<int,int> ant>
 
 // Como voy a pintar la simulacion? -> list <list> cells;
 
+void changeValues(){
 
-void updateConfiguration(){
-    // Creamos la ventana donde manejaremos el cambio de color de las celdas
-    // x y
-    sf::RenderWindow windowColor(sf::VideoMode(500, 600), "Configuracion");
+    sf::RenderWindow window(sf::VideoMode(500, 550), "Cambiar Configuracion");
 
-    while (windowColor.isOpen()){
+    // Creamos las etiquetas para mostrar los valores a cambiar
+    vector < pair<sf::RectangleShape, sf::Text> > etiquetas = {
+        createRectangle( 60, 40, 10,  30, "N : ", 22, 5, 5),
+        createRectangle(180, 40, 10, 120, "Reina : ", 20, 5, 5),
+        createRectangle(180, 40, 10, 210, "Trabajadora : ", 20, 5, 5),
+        createRectangle(180, 40, 10, 300, "Reproductora : ", 20, 5, 5),
+        createRectangle(180, 40, 10, 390, "Soldado : ", 20, 5, 5)
+    };
+
+
+    // Creamos los input boxes con los valores que ya se tienen dentro del programa
+    vector < pair<sf::RectangleShape, sf::Text> > input_boxes = {
+        createRectangle(250, 40, 200,  30, to_string(distribucion_n), 22, 5, 5),
+        createRectangle(250, 40, 200, 120, to_string(densidad_hormigas[0]), 20, 5, 5),
+        createRectangle(250, 40, 200, 210, to_string(densidad_hormigas[1]), 20, 5, 5),
+        createRectangle(250, 40, 200, 300, to_string(densidad_hormigas[2]), 20, 5, 5),
+        createRectangle(250, 40, 200, 390, to_string(densidad_hormigas[3]), 20, 5, 5)
+    };
+
+    auto botonOK = createRectangle(100, 60, 180, 470, "OK", 20, 30, 16);
+
+    for (int i = 0; i < etiquetas.size(); i++){
+        etiquetas[i].first.setFillColor(sf::Color(51, 65, 78));
+        etiquetas[i].second.setFillColor(sf::Color(255, 255, 255));
+    }
+
+    for (int i = 0; i < input_boxes.size(); i++)
+        input_boxes[i].first.setFillColor(sf::Color(255, 255, 255));
+
+
+    int seleccion = -1;
+    string actual = "";
+
+    while (window.isOpen()) {
         sf::Event event;
-        while (windowColor.pollEvent(event)){
-            if (event.type == sf::Event::Closed) windowColor.close();
+        window.clear(sf::Color(51,65,78));
+
+        while (window.pollEvent(event)) {
+            if (event.type == sf::Event::Closed) window.close();
 
             // En caso de que el evento sea en donde se presiona el boton de el mouse, checamos que sea el izquierdo
             if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left){
                 // Obtenemos la posicion del mouse
-                sf::Vector2i mousePos = sf::Mouse::getPosition(windowColor);
+                sf::Vector2i mousePos = sf::Mouse::getPosition(window);
                 sf::Vector2f mousePosF(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y));
+
+                // Dentro del siguiente recorrido por todos los botones, identificamos cual fue presionado para saber que 
+                // input box cambia conforme a la entrada de datos del usuario
+                for (int i = 0; i < input_boxes.size(); i++){
+                    if (input_boxes[i].first.getGlobalBounds().contains(mousePosF)) seleccion = i;
+                }
+
+                if (botonOK.first.getGlobalBounds().contains(mousePosF)){
+                    // Aplicamos los cambios
+                    // Cerramos ventana
+
+                    for (int i = 0; i < input_boxes.size(); i++){
+                        string temp = input_boxes[i].second.getString();
+
+                        bool number = true;
+
+                        // Checamos que los valores ingresados sean numeros
+                        for (int i = 0; i < temp.size() && number; i++){
+                            if (!(temp[i] >= '0' && temp[i] <= '9')) number = false;
+                        }
+
+                        // Revisamos si la cadena NO esta vacia y tiene una cantidad menor a 9 digitos y la bandera
+                        // que nos dice si estamos trabajando con un numero o no
+                        if (temp.size() > 0 && temp.size() <= 9 && number){
+                            int valor = stoi(temp);
+
+                            // Asignamos los valores a las variables
+                            if (i == 0) distribucion_n = valor;
+                            else densidad_hormigas[i - 1] = valor;
+                        }
+                    }
+
+                    // Cerramos la pantalla para acabar con el proceso
+                    window.close(); 
+                }
+
+            }
+
+            // Si el evento fue la entrada de texto, significa que algun valor de los input boxes cambia
+            // Pero tambien checamos si es que algun input box fue seleccionado
+            else if (event.type == sf::Event::TextEntered && seleccion != -1) {
+                actual = input_boxes[seleccion].second.getString();
+
+                // Menejamos el caso en el que se presione la tecla de borrar
+                if (event.text.unicode == '\b'){ 
+                    // Revisamos si es que dentro de la cadena existen valores para poder retirarlos
+                    if (actual.size() > 0) actual.pop_back();
+                }
+
+                // Manjemos si alguna tecla del alfabeto fue presionada 
+                else if (event.text.unicode < 128) {
+                    // La agregamos a la cadena que vamos a mostrar
+                    actual += static_cast<char>(event.text.unicode);
+                }
+
+                // Hacemos un update de los valores mostrados dentro de los input boxes
+                input_boxes[seleccion].second.setString(actual);
+            }
+        }
+        
+
+        // Mostramos en pantalla todas las etiquetas y los input boxes
+        for (int i = 0; i < etiquetas.size(); i++){
+            window.draw(etiquetas[i].first);
+            window.draw(etiquetas[i].second);
+
+            window.draw(input_boxes[i].first);
+            window.draw(input_boxes[i].second);
+        }
+
+        // Mostramos en pantalla el boton de OK
+        window.draw(botonOK.first);
+        window.draw(botonOK.second);
+
+
+        // Mostramos todos los valores anteriores
+        window.display();
+    }
+
+    return;
+}
+
+void updateConfiguration(){
+    sf::RenderWindow windowConfig(sf::VideoMode(500, 350), "Configuracion");
+
+    vector<std::pair<sf::RectangleShape, sf::Text>> buttons = {
+        createRectangle(220, 60, 140, 30,  "Cambiar Color", 20, 45, 17),
+        createRectangle(220, 60, 140, 160, "Cambiar Valores", 20, 35, 17),
+    };
+
+    auto botonOK = createRectangle(100, 60, 200, 270, "OK", 20, 30, 16);
+
+    while (windowConfig.isOpen()){
+        sf::Event event;
+        while (windowConfig.pollEvent(event)){
+            if (event.type == sf::Event::Closed) windowConfig.close();
+
+            // En caso de que el evento sea en donde se presiona el boton de el mouse, checamos que sea el izquierdo
+            if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left){
+                // Obtenemos la posicion del mouse
+                sf::Vector2i mousePos = sf::Mouse::getPosition(windowConfig);
+                sf::Vector2f mousePosF(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y));
+
+                // Hacemos un recorrido por todos los botones creados
+                for (int i = 0; i < buttons.size(); i++){
+                    if (buttons[i].first.getGlobalBounds().contains(mousePosF)) {
+                        if (buttons[i].second.getString() == "Cambiar Valores"){
+                            windowConfig.setVisible(false);
+                            changeValues();
+                            windowConfig.setVisible(true);
+                        }
+                        else{
+                            windowConfig.setVisible(false);
+                            cout << "Cambio de colores en las hormigas" << endl;
+                            windowConfig.setVisible(true);
+                        }
+                    }
+                }
+
+                // Cerramos la pantalla en caso de que el boton OK sea presionado
+                if (botonOK.first.getGlobalBounds().contains(mousePosF)) windowConfig.close();
 
             }
         }
 
-        windowColor.clear(sf::Color(51,65,78));
+        windowConfig.clear(sf::Color(51,65,78));
 
         // Draw the preview rectangle and the palette to the window
+        for (auto& button : buttons) {
+            windowConfig.draw(button.first);
+            windowConfig.draw(button.second);
+        }
 
-        windowColor.display();
+        windowConfig.draw(botonOK.first);
+        windowConfig.draw(botonOK.second);
+
+
+        windowConfig.display();
     }
 
 }
@@ -653,10 +704,11 @@ void nextState(){
 
 
     // Que tengo que recorrer? Tengo que checar el arreglo de las hormigas
+    int cantidad_total = hormigas.size();
     map<pair<int,int>, Ant>:: iterator i = hormigas.begin();
     map <pair<int,int>, Ant> nacimiento;
 
-    while(i != hormigas.end()){
+    for(; i != hormigas.end(); i++){
         int x = i->first.first;
         int y = i->first.second;
 
@@ -737,9 +789,6 @@ void nextState(){
                 }
             }
         }
-
-        i++;
-
     }
 
     // Agregamos todas las hormigas que salieron de la condicion de nacimiento
@@ -821,7 +870,18 @@ void actionHandler(string action){
         total_iteraciones++;
         total_celdas_vivas = celdas_vivas.size();
 
-        valores_grafica_densidad.PB(total_celdas_vivas);
+        valores_grafica_densidad.PB(hormigas.size());
+
+        /*
+        int total_hormigas_vivas = hormigas.size();
+
+        // Comprobamos si es que realizamos una division entre 0
+        // Si no es el caso realizamos la division normalmente
+        if (total_hormigas_vivas != 0)
+            valores_grafica_densidad.PB(total_celdas_vivas / total_hormigas_vivas);
+        else // En caso contrario, ponemos un valor igual a 0
+            valores_grafica_densidad.PB(0);
+        */
     }
 
     // Detenemos la evolución automatica si es el caso
@@ -988,6 +1048,9 @@ void guardarArchivo(GtkDialog *dialog, gint response_id, gpointer user_data) {
         // Escribimos el numero de la dimension de la matrix cuadrada
         file << numero << endl;
 
+        // Aplicamos cualquier cambio que este pendiente en la simulacion
+        for (auto i : hormigas_temporal) hormigas[i.first] = i.second;
+
         // Escribimos las posiciones de las hormigas junto con los parametros de cada hormiga
         for (auto i : hormigas){
             string hormiga_actual = to_string(i.first.first) + " " + to_string(i.first.second) + " ";
@@ -1058,7 +1121,6 @@ void archivoHandler(string action){
     return;
 }
 
-
 void showGraphs(){
 
     // Cremos el archivo para guardar los datos de la densidad poblacional
@@ -1074,7 +1136,7 @@ void showGraphs(){
 
     // Ejecutamos el programa para la visualización de las gráficas y limpiamos los archivos creados
     int a = system("python3 graphs.py");
-    int b = system("rm normal.txt");
+    //int b = system("rm normal.txt");
 
     return;    
 }
@@ -1084,33 +1146,13 @@ int main() {
 
     // x, y
 
-    /*
-    celdas_vivas.insert({3, 0});
-    celdas_vivas.insert({5, 0});
-    celdas_vivas.insert({7, 0});
-    celdas_vivas.insert({9, 0});
-    celdas_vivas.insert({5, 3});
-
-    matrix[0][3] = true;
-    matrix[0][5] = true;
-    matrix[0][7] = true;
-    matrix[0][9] = true;
-    matrix[3][5] = true;
-
-
-    index_zoom -= 3;
-    */
-
     color_hormigas[0] = {255,99,71};
     color_hormigas[1] = {50,205,50};
     color_hormigas[2] = {0,102,204};
     color_hormigas[3] = {221,160,221};
 
+    densidad_hormigas = {1, 55, 9, 35};
 
-    densidad_hormigas[0] = 1;
-    densidad_hormigas[1] = 55;
-    densidad_hormigas[2] = 9;
-    densidad_hormigas[3] = 35;
 
 
     // Creamos la ventana principal en la cual tendra todos los botones y la ventana del juego
@@ -1203,9 +1245,11 @@ int main() {
                     if (buttons[i].first.getGlobalBounds().contains(mousePosF)) {
                             // Si el boton fue presionado, lo mandamos a nuestra funcion de actionHandler
                             string action = buttons[i].second.getString();
-                            if (action == "Configuracion" )
+                            if (action == "Configuracion" ){
+                                outerWindow.setVisible(false);
                                 updateConfiguration();
-                            
+                                outerWindow.setVisible(true);
+                            }
                             else if (action == "Guardar" || action == "Abrir"){
                                 outerWindow.setVisible(false);
                                 archivoHandler(action);
@@ -1220,7 +1264,6 @@ int main() {
                             else actionHandler(action);
 
                             // Seleccionar color
-                            // Mostrar graficas
                     }
                 }
 
