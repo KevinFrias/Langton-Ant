@@ -7,7 +7,7 @@
 using namespace std;
 
 // Declaracion del size total de programa junto con el size de cada celda
-int n = 1400;
+int n = 700;
 int n_archivo = 0;
 int sizeCelda_X, sizeCelda_Y;
 
@@ -22,11 +22,12 @@ struct Ant {
 vector <int> densidad_hormigas(4);
 
 // Variable de ayuda para el control de la distribucion de hormigas dentro del tablero
-int distribucion_n = 200;
+int distribucion_n = 350;
 
 // Matrices necesarias para los diferentes estados de la simulacion
 // Son enteros ya que guardaremos el tipo de hormiga en cada celda
-vector <vector <bool> > matrix(n, vector <bool> (n, false));
+vector <vector <bool>> matrix(n, vector <bool> (n, false));
+vector <vector <bool>> matrix_clean(n, vector<bool> (n, false));
 map <pair<int,int>, bool> cambios_matrix;
 
 
@@ -75,7 +76,7 @@ int total_celdas_vivas_entriopia = 0;
 
 // varibles necesarias para el control del zoom
 int index_zoom = 10;
-vector <int> zoom = {/*1,*/ 2, 4, 5, 7, 10, 14, 20, 25, 28, 35, 50, 70, 100, 140, 175, 350, 700};
+vector <int> zoom = {/*1, 2,*/ 4, 5, 7, 10, 14, 20, 25, 28, 35, 50, 70, 100, 140, 175, 350, 700};
 
 // Definimos banderas que nos ayudan a mantener el control de acciones especificas del programa
 bool bandera_automatico = false;
@@ -735,7 +736,6 @@ pair <pair<int,int> ,Ant> checkFront(int direccion, int x, int y, bool bandera_n
                 actual.edad = 0;
                 actual.direccion = 0;
                 actual.tipo = 3;
-
                 pair <int,int> coordenadas_posibles = getPossibleCell(x, y);
                 return {coordenadas_posibles, actual};
             }
@@ -800,6 +800,8 @@ void nextState(){
     // 3 -> Soldado
 
 
+    std::srand(std::time(0));
+
     // Que tengo que recorrer? Tengo que checar el arreglo de las hormigas
     int cantidad_total = hormigas.size();
     map<pair<int,int>, Ant>:: iterator i = hormigas.begin();
@@ -810,7 +812,7 @@ void nextState(){
         int y = i->first.second;
 
         // Comprobamos si es la hormiga existe en la iteracion actual
-        if (borrar.count({x,y}) == 0){
+        if (borrar.find({x,y}) == borrar.end()){
             // En caso de que la hormiga cumpla con la condicion maxima de iteraciones, se quitara de la simulacion
             if (i->second.edad == 80) borrar.insert({x, y});
             else {
@@ -858,6 +860,11 @@ void nextState(){
                             auto hormiga_nacimiento = checkFront(i->second.direccion, x, y, true);
                             // En caso de que se cumpla la condicion de nacimiento, agregamos la hormiga al arreglo de nacimiento de hormigas
                             if (hormiga_nacimiento.first.first >= 0) {
+                                int random_number = (std::rand() % 4);
+                                hormiga_nacimiento.second.tipo = random_number;
+                                random_number += 1;
+                                hormiga_nacimiento.second.direccion = random_number;
+
                                 nacimiento[hormiga_nacimiento.first] = hormiga_nacimiento.second;
                             }
                         }
@@ -965,7 +972,7 @@ void actionHandler(string action){
         // Aumentamos el numero total de iteraciones
 
         total_iteraciones++;
-        total_celdas_vivas = celdas_vivas.size();
+        total_celdas_vivas = hormigas.size();
 
         valores_grafica_densidad.PB(hormigas.size());
 
@@ -1010,11 +1017,11 @@ void actionHandler(string action){
 
     if (action == "Limpiar Juego"){
         // Reinicmaos todos los valores para el inicio de un nuevo juego
-        total_celdas_vivas = 0;
+        total_celdas_vivas = hormigas.size();
         total_iteraciones = 0;
 
         cambios_matrix.clear();
-        matrix.resize(n, vector<bool> (n, false));
+        matrix = matrix_clean;
 
         celdas_vivas.clear();
         hormigas_temporal.clear();
@@ -1034,6 +1041,8 @@ void actionHandler(string action){
     }
 
     if (action == "Inicializar Juego"){
+        actionHandler("Limpiar Juego");
+
         int index = 3;
 
         while(index>= 0){
@@ -1247,7 +1256,7 @@ int main() {
     color_hormigas[1] = {182,96,255};
     color_hormigas[2] = {0,182,255};
     color_hormigas[3] = {0,255,0};
-    densidad_hormigas = {1, 55, 9, 35};
+    densidad_hormigas = {6, 22, 50, 22};
 
 
 
